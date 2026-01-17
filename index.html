@@ -165,12 +165,21 @@
     <script src="https://unpkg.com/scrollama"></script>
     <style>
         .slideshow-container {
-            max-width: 800px;
+            max-width: 1000px;
             position: relative;
             margin: auto;
             border-radius: 8px;
             overflow: hidden;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .slideshow-container .slide:first-child img {
+            width: 100%;
+            height: auto;
+            max-height: 80vh;
+            object-fit: contain;
+            margin: 0 auto;
+            display: block;
         }
 
         .slide {
