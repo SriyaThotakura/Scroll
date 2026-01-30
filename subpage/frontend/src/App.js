@@ -114,7 +114,7 @@ const translations = {
 };
 
 // ==================== CONSTANTS ====================
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://scroll-y8wn.onrender.com';
 const SOUNDVIEW_CENTER = [40.824, -73.875];
 const MAX_TAX = 100;
 
