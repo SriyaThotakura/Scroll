@@ -37,6 +37,7 @@ const layers = {
 
 // Track hero section visibility
 let isInHeroSection = true;
+let dotsInitialized = false;
 
 // Function to fetch and join HVI data with UHF42 geography
 async function fetchAndJoinHVIData() {
@@ -763,6 +764,45 @@ async function loadAsthmaHexbinLayer() {
     console.log('Asthma hexbin data loaded successfully');
 }
 
+// Function to create a glow dot element
+function createGlowDot() {
+    const dot = document.createElement('div');
+    dot.className = 'glow-dot';
+    document.body.appendChild(dot);
+    return dot;
+}
+
+// Function to animate dots along a path
+function animateDotAlongPath(dot, path, duration = 5000) {
+    const pathLength = turf.length(path, { units: 'kilometers' });
+    const points = turf.lineChunk(path, 0.1, { units: 'kilometers' });
+    
+    let start = null;
+    
+    function step(timestamp) {
+        if (!start) start = timestamp;
+        const progress = (timestamp - start) / duration;
+        
+        if (progress < 1) {
+            const currentPoint = turf.along(path, pathLength * progress, { units: 'kilometers' });
+            const coords = currentPoint.geometry.coordinates;
+            const pixel = map.project([coords[0], coords[1]]);
+            
+            dot.style.left = `${pixel.x}px`;
+            dot.style.top = `${pixel.y}px`;
+            
+            animationFrame = requestAnimationFrame(step);
+        } else {
+            // Restart animation
+            start = timestamp;
+            animationFrame = requestAnimationFrame(step);
+        }
+    }
+    
+    animationFrame = requestAnimationFrame(step);
+    return animationFrame;
+}
+
 // Wait for the map to load
 map.on('load', async () => {
     // Add initial data sources and layers (await to ensure traffic data is preloaded)
@@ -776,6 +816,33 @@ map.on('load', async () => {
 
     // Load Asthma hexbin data
     loadAsthmaHexbinLayer();
+
+    // Add glow dots to highways
+    const highways = [
+        // Major highways in the Bronx
+        {
+            name: 'cross-bronx',
+            coordinates: [
+                [-73.9288, 40.8133],
+                [-73.9100, 40.8180],
+                [-73.8900, 40.8200],
+                [-73.8700, 40.8220],
+                [-73.8500, 40.8240],
+                [-73.8300, 40.8260],
+                [-73.8100, 40.8280]
+            ]
+        },
+        // Add more highways as needed
+    ];
+
+    // Create and animate dots for each highway
+    highways.forEach((highway, index) => {
+        setTimeout(() => {
+            const path = turf.lineString(highway.coordinates);
+            const dot = createGlowDot();
+            animateDotAlongPath(dot, path, 10000 + (index * 2000));
+        }, index * 1000);
+    });
 
     // Initialize Scrollama after map and layers are loaded
     scroller = scrollama();
@@ -794,17 +861,34 @@ map.on('load', async () => {
     // Track hero section visibility
     const heroSection = document.querySelector('.relative.h-screen');
     const observer = new IntersectionObserver((entries) => {
+        const wasInHero = isInHeroSection;
         isInHeroSection = entries[0].isIntersecting;
-        if (isInHeroSection && animationFrame === undefined) {
+
+        console.log('Hero section visibility changed:', isInHeroSection);
+
+        if (isInHeroSection && !wasInHero && dotsInitialized) {
             // Restart animation when returning to hero section
-            animationFrame = requestAnimationFrame(animateDots);
+            console.log('Restarting hero animation');
+            if (animationFrame === undefined) {
+                animationStart = undefined; // Reset animation timer
+                animationFrame = requestAnimationFrame(animateDots);
+            }
+            // Make arterial roads and dots visible
+            map.setLayoutProperty(layers.arterialRoads, 'visibility', 'visible');
+            map.setLayoutProperty(layers.arterialDots, 'visibility', 'visible');
+        } else if (!isInHeroSection) {
+            // Hide arterial roads when not in hero section
+            console.log('Hiding arterial roads');
+            map.setLayoutProperty(layers.arterialRoads, 'visibility', 'none');
+            map.setLayoutProperty(layers.arterialDots, 'visibility', 'none');
         }
     }, {
-        threshold: 0.5
+        threshold: 0.3
     });
-    
+
     if (heroSection) {
         observer.observe(heroSection);
+        console.log('Hero section observer initialized');
     }
 
     // Setup resize event
@@ -1031,8 +1115,11 @@ async function initializeMapLayers() {
         source: 'arterial-roads',
         paint: {
             'line-color': '#8B0000', // Dark blood red
-            'line-width': 2,
-            'line-opacity': 0.8
+            'line-width': 3,
+            'line-opacity': 0.7
+        },
+        layout: {
+            visibility: 'visible'
         }
     });
     
@@ -1040,46 +1127,113 @@ async function initializeMapLayers() {
     map.addLayer({
         id: layers.arterialDots,
         type: 'circle',
-        source: 'arterial-roads',
+        source: 'arterial-dots-source',
         paint: {
-            'circle-radius': [
+            'circle-radius': 4,
+            'circle-color': [
                 'interpolate',
                 ['linear'],
-                ['zoom'],
-                10, 2,
-                16, 3
+                ['get', 'vehicleId'],
+                0, '#FF3333',
+                1, '#FF4444',
+                2, '#FF5555',
+                3, '#FF6666',
+                4, '#FF7777'
             ],
-            'circle-color': '#FF0000', // Bright red for visibility
             'circle-opacity': 0,
-            'circle-blur': 1
+            'circle-blur': 0.8,
+            'circle-stroke-width': 1.5,
+            'circle-stroke-color': '#FFFFFF',
+            'circle-stroke-opacity': 0
+        },
+        layout: {
+            visibility: 'visible'
         }
     });
     
-    // Generate points along the line for dot animation
+    // Generate points along the line for dot animation with multiple lanes
     function generatePointsAlongLine() {
         const features = [];
         const source = map.getSource('arterial-roads');
-        
+
         if (source && source._data && source._data.features) {
-            source._data.features.forEach(feature => {
-                if (feature.geometry.type === 'LineString') {
-                    const coordinates = feature.geometry.coordinates;
-                    for (let i = 0; i < coordinates.length - 1; i++) {
-                        features.push({
-                            type: 'Feature',
-                            geometry: {
-                                type: 'Point',
-                                coordinates: coordinates[i]
-                            },
-                            properties: {
-                                progress: i / (coordinates.length - 1)
-                            }
-                        });
+            source._data.features.forEach((feature, roadIndex) => {
+                if (feature.geometry.type === 'LineString' || feature.geometry.type === 'MultiLineString') {
+                    let lineStrings = [];
+
+                    if (feature.geometry.type === 'LineString') {
+                        lineStrings = [feature.geometry.coordinates];
+                    } else {
+                        lineStrings = feature.geometry.coordinates;
                     }
+
+                    lineStrings.forEach((coordinates, segmentIndex) => {
+                        // Create more vehicles for busy traffic (8-12 vehicles per road segment)
+                        const numVehicles = 8 + Math.floor(Math.random() * 5);
+
+                        // Calculate total line length for spacing
+                        let totalLength = 0;
+                        for (let i = 0; i < coordinates.length - 1; i++) {
+                            const dx = coordinates[i + 1][0] - coordinates[i][0];
+                            const dy = coordinates[i + 1][1] - coordinates[i][1];
+                            totalLength += Math.sqrt(dx * dx + dy * dy);
+                        }
+
+                        // Generate points along the line with proper spacing
+                        const pointsPerSegment = Math.max(50, Math.floor(totalLength * 10000));
+
+                        for (let vehicleId = 0; vehicleId < numVehicles; vehicleId++) {
+                            // Stagger start positions evenly
+                            const startOffset = vehicleId / numVehicles;
+                            // Vary speed for each vehicle (0.6 to 1.4 speed multiplier for variety)
+                            const speedMultiplier = 0.6 + (Math.random() * 0.8);
+
+                            for (let i = 0; i <= pointsPerSegment; i++) {
+                                const progress = i / pointsPerSegment;
+
+                                // Calculate position along the line
+                                const targetLength = progress * totalLength;
+                                let currentLength = 0;
+                                let segmentProgress = 0;
+                                let coords = coordinates[0];
+
+                                for (let j = 0; j < coordinates.length - 1; j++) {
+                                    const dx = coordinates[j + 1][0] - coordinates[j][0];
+                                    const dy = coordinates[j + 1][1] - coordinates[j][1];
+                                    const segmentLength = Math.sqrt(dx * dx + dy * dy);
+
+                                    if (currentLength + segmentLength >= targetLength) {
+                                        segmentProgress = (targetLength - currentLength) / segmentLength;
+                                        coords = [
+                                            coordinates[j][0] + dx * segmentProgress,
+                                            coordinates[j][1] + dy * segmentProgress
+                                        ];
+                                        break;
+                                    }
+                                    currentLength += segmentLength;
+                                }
+
+                                features.push({
+                                    type: 'Feature',
+                                    geometry: {
+                                        type: 'Point',
+                                        coordinates: coords
+                                    },
+                                    properties: {
+                                        progress: progress,
+                                        vehicleId: vehicleId,
+                                        roadId: roadIndex * 100 + segmentIndex,
+                                        startOffset: startOffset,
+                                        speedMultiplier: speedMultiplier
+                                    }
+                                });
+                            }
+                        }
+                    });
                 }
             });
         }
-        
+
         return {
             type: 'FeatureCollection',
             features: features
@@ -1099,41 +1253,85 @@ async function initializeMapLayers() {
     const pointsData = generatePointsAlongLine();
     map.getSource('arterial-dots-source').setData(pointsData);
     
-    // Animate the dots
+    // Animate the dots with busy truck flow movement
     let animationFrame;
     let animationStart;
-    const animationDuration = 4000; // 4 seconds for one full cycle
-    
+    const animationDuration = 8000; // 8 seconds for one full cycle (slower for truck flow)
+
     function animateDots(timestamp) {
         if (!animationStart) animationStart = timestamp;
         const elapsed = timestamp - animationStart;
-        const progress = (elapsed % animationDuration) / animationDuration;
-        
+        const baseProgress = (elapsed % animationDuration) / animationDuration;
+
         if (isInHeroSection) {
-            // Ensure values are in ascending order
-            const start = Math.max(0, progress - 0.2);
-            const mid = progress;
-            const end = Math.min(1, progress + 0.2);
-            
+            // Calculate distance from current animation position
+            const distanceFromCurrent = [
+                'abs',
+                [
+                    '-',
+                    ['get', 'progress'],
+                    [
+                        '%',
+                        [
+                            '+',
+                            [
+                                '*',
+                                baseProgress,
+                                ['get', 'speedMultiplier']
+                            ],
+                            ['get', 'startOffset']
+                        ],
+                        1
+                    ]
+                ]
+            ];
+
+            // Create continuous truck flow with smooth transitions
             map.setPaintProperty(layers.arterialDots, 'circle-opacity', [
-                'step',
-                ['get', 'progress'],
-                0,
-                start, 0,
-                mid, 0.9,
-                end, 0
+                'interpolate',
+                ['linear'],
+                distanceFromCurrent,
+                0, 0.95,    // Exact match: full opacity
+                0.01, 0.9,  // Very close: high opacity
+                0.02, 0.8,  // Close: still visible
+                0.03, 0.6,  // Medium distance
+                0.05, 0.3,  // Far: fading
+                0.08, 0     // Very far: invisible
             ]);
-            
-            // Add glow effect
+
+            // Dynamic radius for truck-like appearance (larger, more consistent)
             map.setPaintProperty(layers.arterialDots, 'circle-radius', [
-                'step',
-                ['get', 'progress'],
-                0,
-                start, 0,
-                mid, 5,
-                end, 0
+                'interpolate',
+                ['linear'],
+                distanceFromCurrent,
+                0, 7,       // Center of truck: largest
+                0.01, 6.5,  // Slightly behind/ahead
+                0.02, 5,    // Medium distance: smaller
+                0.04, 3,    // Far: tiny
+                0.08, 0     // Very far: invisible
             ]);
-            
+
+            // Add blur for motion effect (trucks moving fast)
+            map.setPaintProperty(layers.arterialDots, 'circle-blur', [
+                'interpolate',
+                ['linear'],
+                distanceFromCurrent,
+                0, 0.4,     // Center: slight blur for motion
+                0.01, 0.6,  // Slight distance: more blur
+                0.03, 1.2,  // Medium distance: heavy blur
+                0.08, 2     // Far: maximum blur
+            ]);
+
+            // Add white stroke for truck headlights effect on leading vehicles
+            map.setPaintProperty(layers.arterialDots, 'circle-stroke-opacity', [
+                'interpolate',
+                ['linear'],
+                distanceFromCurrent,
+                0, 0.8,     // Center: bright headlights
+                0.015, 0.5, // Close: dimmer
+                0.03, 0     // Far: no stroke
+            ]);
+
             animationFrame = requestAnimationFrame(animateDots);
         } else {
             // Hide dots when not in hero section
@@ -1143,14 +1341,33 @@ async function initializeMapLayers() {
     
     // Start the dot animation
     animationFrame = requestAnimationFrame(animateDots);
-    
-    // Update animation when map moves
+
+    // Update animation when map moves (throttled for performance)
+    let moveTimeout;
     map.on('move', () => {
         if (isInHeroSection) {
-            const pointsData = generatePointsAlongLine();
-            map.getSource('arterial-dots-source').setData(pointsData);
+            clearTimeout(moveTimeout);
+            moveTimeout = setTimeout(() => {
+                const pointsData = generatePointsAlongLine();
+                if (map.getSource('arterial-dots-source')) {
+                    map.getSource('arterial-dots-source').setData(pointsData);
+                }
+            }, 100);
         }
     });
+
+    console.log('Arterial roads and animated dots initialized');
+    console.log('Generated points:', pointsData.features.length);
+    dotsInitialized = true;
+
+    // Force initial animation to start
+    setTimeout(() => {
+        if (isInHeroSection && map.getSource('arterial-dots-source')) {
+            console.log('Forcing initial dot animation');
+            const initialPoints = generatePointsAlongLine();
+            map.getSource('arterial-dots-source').setData(initialPoints);
+        }
+    }, 500);
 
     // Add GeoJSON data source (replace with your actual data)
     map.addSource('master-data', {

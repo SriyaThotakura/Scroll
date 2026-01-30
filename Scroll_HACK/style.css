@@ -1,3 +1,102 @@
+/* Glowing Dot Animation - Busy Truck Flow Style */
+@keyframes moveDot {
+    0% {
+        offset-distance: 0%;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+    3% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    97% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    100% {
+        offset-distance: 100%;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.8);
+    }
+}
+
+@keyframes truckPulse {
+    0%, 100% {
+        filter: drop-shadow(0 0 8px #ff4444)
+                drop-shadow(0 0 16px #ff3333)
+                drop-shadow(0 0 24px #ff2222);
+        transform: scale(1);
+    }
+    50% {
+        filter: drop-shadow(0 0 12px #ff5555)
+                drop-shadow(0 0 20px #ff4444)
+                drop-shadow(0 0 32px #ff3333);
+        transform: scale(1.05);
+    }
+}
+
+@keyframes headlightFlare {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(255, 255, 255, 0.8),
+                    0 0 16px rgba(255, 255, 255, 0.6),
+                    0 0 24px rgba(255, 68, 68, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 12px rgba(255, 255, 255, 1),
+                    0 0 20px rgba(255, 255, 255, 0.8),
+                    0 0 32px rgba(255, 68, 68, 0.6);
+    }
+}
+
+.glow-dot {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: radial-gradient(circle, #ffffff 0%, #ff6666 30%, #ff4444 60%, #ff2222 100%);
+    border-radius: 50%;
+    filter: drop-shadow(0 0 8px #ff4444)
+            drop-shadow(0 0 16px #ff3333)
+            drop-shadow(0 0 24px #ff2222);
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    animation: truckPulse 1.5s ease-in-out infinite;
+}
+
+.mapboxgl-map .glow-dot {
+    opacity: 1;
+}
+
+/* Add motion blur effect for truck movement */
+.glow-dot::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse 150% 100%, rgba(255, 68, 68, 0.5) 0%, transparent 50%);
+    border-radius: 50%;
+    animation: truckPulse 1.5s ease-in-out infinite;
+}
+
+/* Headlight effect */
+.glow-dot::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60%;
+    height: 60%;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    animation: headlightFlare 1s ease-in-out infinite;
+}
+
 /* Base Styles */
 :root {
     --glass-bg: rgba(255, 255, 255, 0.7);
