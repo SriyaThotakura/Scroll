@@ -9,7 +9,7 @@
  */
 
 import React, { useState, createContext, useContext } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import App from './App';
 import ForensicAnalysis from './components/ForensicDashboard/ForensicAnalysis';
