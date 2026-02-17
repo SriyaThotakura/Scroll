@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SSP Climate Scenarios — South Bronx Simulation Pipeline</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:ital,wght@0,300;0,400;0,700;1,300&family=Barlow+Condensed:wght@400;600;700;900&display=swap');
+
+:root {
+  --bg:       #070a0f;
+  --bg2:      #0a0f16;
+  --bg3:      #0f1720;
+  --border:   #162030;
+  --border2:  #1e2e42;
+  --text:     #b8cce0;
+  --muted:    #3d5570;
+  --faint:    #111d2a;
+
+  /* scenario colours */
+  --ssp1:     #34d399;   /* green — best case */
+  --ssp3:     #ef4444;   /* red — worst case */
+  --ssp4a:    #38bdf8;   /* sky — Manhattan clean */
+  --ssp4b:    #f97316;   /* orange — Bronx toxic */
+  --now:      #f59e0b;   /* amber — current */
+
+  --glow-ssp1: 0 0 32px rgba(52,211,153,0.3);
+  --glow-ssp3: 0 0 32px rgba(239,68,68,0.35);
+  --glow-ssp4: 0 0 32px rgba(249,115,22,0.3);
+  --glow-now:  0 0 32px rgba(245,158,11,0.3);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(22,32,48,0.6) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(22,32,48,0.6) 1px, transparent 1px);
+  background-size: 44px 44px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.page {
+  position: relative;
+  z-index: 1;
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 52px 28px 96px;
+}
+
+/* ── HEADER ────────────────────────────────── */
+.header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 32px;
+  margin-bottom: 64px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--border);
+}
+.header-left {}
+.eyebrow {
+  font-size: 9px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.header h1 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: clamp(36px, 5vw, 72px);
+  line-height: 0.95;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+}
+.header h1 em {
+  font-family: 'DM Serif Display', serif;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--now);
+  text-transform: none;
+}
+.header-sub {
+  margin-top: 14px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--muted);
+  max-width: 520px;
+}
+.header-right {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  text-align: right;
+}
+.scale-legend {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.sl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+.sl-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sl-label { color: var(--muted); }
+
+/* ── BRIDGE SECTION ──────────────────────── */
+.bridge {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 60px;
+  padding: 28px 32px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+}
+.bridge-box {
+  padding: 18px 20px;
+  border: 1px solid var(--border2);
+  background: var(--bg3);
+}
+.bridge-box .bb-label {
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.bb-micro .bb-label { color: var(--now); }
+.bb-macro .bb-label { color: var(--ssp1); }
+.bridge-box h3 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  color: #fff;
+  margin-bottom: 6px;
+  letter-spacing: 0.03em;
+}
+.bridge-box p {
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.bridge-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+}
+.bridge-arrow .arr { font-size: 22px; color: var(--border2); }
+
+/* ── SCENARIO CARDS GRID ─────────────────── */
+.scenarios-label {
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.scenarios-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  margin-bottom: 48px;
+}
+@media (max-width: 1000px) {
+  .scenarios-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .scenarios-grid { grid-template-columns: 1fr; }
+}
+
+.s-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.s-card:hover { z-index: 2; }
+.s-card.now:hover    { border-color: var(--now);  box-shadow: var(--glow-now);  }
+.s-card.ssp1:hover   { border-color: var(--ssp1); box-shadow: var(--glow-ssp1); }
+.s-card.ssp3:hover   { border-color: var(--ssp3); box-shadow: var(--glow-ssp3); }
+.s-card.ssp4:hover   { border-color: var(--ssp4b); box-shadow: var(--glow-ssp4); }
+
+.s-card::before {
+  content: '';
+  display: block;
+  height: 3px;
+}
+.s-card.now::before  { background: var(--now); }
+.s-card.ssp1::before { background: var(--ssp1); }
+.s-card.ssp3::before { background: var(--ssp3); }
+.s-card.ssp4::before { background: linear-gradient(90deg, var(--ssp4a) 50%, var(--ssp4b) 50%); }
+
+/* CARD HEADER */
+.s-header {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.s-tag {
+  font-size: 8px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+.s-card.now  .s-tag  { color: var(--now); }
+.s-card.ssp1 .s-tag  { color: var(--ssp1); }
+.s-card.ssp3 .s-tag  { color: var(--ssp3); }
+.s-card.ssp4 .s-tag  { color: var(--ssp4b); }
+
+.s-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  color: #fff;
+  line-height: 1;
+  margin-bottom: 3px;
+}
+.s-subtitle {
+  font-size: 9px;
+  color: var(--muted);
+  font-style: italic;
+  font-family: 'DM Serif Display', serif;
+}
+
+/* CANVAS BUILDING SIMULATION */
+.s-sim {
+  position: relative;
+  height: 180px;
+  overflow: hidden;
+  background: #040810;
+}
+canvas.building-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* PARAMS */
+.s-params {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.param-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 9.5px;
+}
+.param-key { color: var(--muted); letter-spacing: 0.05em; }
+.param-val {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.s-card.now  .param-val { color: var(--now); }
+.s-card.ssp1 .param-val { color: var(--ssp1); }
+.s-card.ssp3 .param-val { color: var(--ssp3); }
+.s-card.ssp4 .param-val { color: var(--ssp4b); }
+
+/* NARRATIVE */
+.s-narrative {
+  padding: 14px 20px;
+  font-size: 10px;
+  line-height: 1.65;
+  color: var(--text);
+  flex: 1;
+}
+
+/* VERDICT */
+.s-verdict {
+  padding: 12px 20px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.s-card.now  .s-verdict { color: var(--now);  background: rgba(245,158,11,0.06); }
+.s-card.ssp1 .s-verdict { color: var(--ssp1); background: rgba(52,211,153,0.06); }
+.s-card.ssp3 .s-verdict { color: var(--ssp3); background: rgba(239,68,68,0.06);  }
+.s-card.ssp4 .s-verdict { color: var(--ssp4b); background: rgba(249,115,22,0.06); }
+
+/* ── PIPELINE TABLE ──────────────────────── */
+.pipeline-section { margin-bottom: 48px; }
+
+.pipeline-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.pipeline-table thead tr {
+  background: var(--bg3);
+  border-bottom: 2px solid var(--border2);
+}
+.pipeline-table th {
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 8px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 400;
+}
+.pipeline-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  line-height: 1.5;
+}
+.pipeline-table tbody tr:hover { background: var(--bg3); }
+
+.td-scenario {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.td-code {
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  white-space: nowrap;
+  display: inline-block;
+}
+.td-verdict {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+}
+
+/* ── SSP4 DUAL CITY DIAGRAM ─────────────── */
+.ssp4-section { margin-bottom: 48px; }
+.dual-city {
+  display: grid;
+  grid-template-columns: 1fr 40px 1fr;
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.city-panel {
+  padding: 24px 28px 28px;
+  position: relative;
+}
+.city-panel.manhattan {
+  background: rgba(56,189,248,0.04);
+  border-right: none;
+}
+.city-panel.bronx {
+  background: rgba(249,115,22,0.04);
+}
+.city-divider {
+  background: var(--bg3);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  font-size: 8px;
+  letter-spacing: 0.3em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.city-label {
+  font-size: 8px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.city-panel.manhattan .city-label { color: var(--ssp4a); }
+.city-panel.bronx     .city-label { color: var(--ssp4b); }
+.city-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: 28px;
+  color: #fff;
+  letter-spacing: 0.02em;
+  margin-bottom: 6px;
+}
+.city-ssp {
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+.city-sim { height: 120px; position: relative; overflow: hidden; background: #040810; margin-bottom: 16px; border: 1px solid var(--border); }
+canvas.city-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.city-desc {
+  font-size: 10px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.forensic-argument {
+  margin-top: 20px;
+  padding: 20px 24px;
+  background: rgba(249,115,22,0.07);
+  border: 1px solid rgba(249,115,22,0.25);
+  border-left: 3px solid var(--ssp4b);
+}
+.fa-label {
+  font-size: 8px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ssp4b);
+  margin-bottom: 8px;
+}
+.fa-text {
+  font-family: 'DM Serif Display', serif;
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.45;
+  color: #fff;
+}
+
+/* ANIMATIONS */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.s-card { animation: fadeUp 0.5s ease both; }
+.s-card:nth-child(1) { animation-delay: 0.05s; }
+.s-card:nth-child(2) { animation-delay: 0.12s; }
+.s-card:nth-child(3) { animation-delay: 0.19s; }
+.s-card:nth-child(4) { animation-delay: 0.26s; }
+.bridge      { animation: fadeUp 0.5s ease 0.3s both; }
+.dual-city   { animation: fadeUp 0.5s ease 0.35s both; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <div class="eyebrow">SSP Climate Scenario Pipeline · South Bronx Simulation</div>
+      <h1>Global Models,<br><em>Local</em> Consequences</h1>
+      <div class="header-sub">
+        Mapping IPCC Shared Socioeconomic Pathways directly into Grasshopper simulation parameters.
+        Each SSP becomes a multiplier on Radius, Jitter, and Opacity — translating macro-climate into micro-crime.
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="scale-legend">
+        <div class="sl-row"><div class="sl-dot" style="background:var(--now)"></div><span class="sl-label">Current (2024)</span></div>
+        <div class="sl-row"><div class="sl-dot" style="background:var(--ssp1)"></div><span class="sl-label">SSP1 · Best Case</span></div>
+        <div class="sl-row"><div class="sl-dot" style="background:var(--ssp3)"></div><span class="sl-label">SSP3 · Worst Case</span></div>
+        <div class="sl-row"><div class="sl-dot" style="background:var(--ssp4b)"></div><span class="sl-label">SSP4 · Inequality</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- THEORETICAL BRIDGE -->
+  <div class="bridge">
+    <div class="bridge-box bb-micro">
+      <div class="bb-label">Micro Scale · Your LSTM</div>
+      <h3>Simulates Physics</h3>
+      <p>How pollution behaves when traffic stops.<br>
+      <strong style="color:var(--now)">Cause → Effect</strong></p>
+    </div>
+    <div class="bridge-arrow">
+      <span class="arr">⟷</span>
+      <span>BRIDGE</span>
+    </div>
+    <div class="bridge-box bb-macro">
+      <div class="bb-label">Macro Scale · SSP Models</div>
+      <h3>Simulate Frequency &amp; Intensity</h3>
+      <p>How often that traffic stop will occur<br>and how hot the background air will be.<br>
+      <strong style="color:var(--ssp1)">Multipliers on Radius · Jitter · Opacity</strong></p>
+    </div>
+  </div>
+
+  <!-- SCENARIO CARDS -->
+  <div class="scenarios-label">Scenario Outputs — Grasshopper Simulation Pipeline</div>
+  <div class="scenarios-grid" id="scenario-grid">
+
+    <!-- CURRENT -->
+    <div class="s-card now">
+      <div class="s-header">
+        <div class="s-tag">Baseline · 2024</div>
+        <div class="s-title">Current State</div>
+        <div class="s-subtitle">The Crime Scene</div>
+      </div>
+      <div class="s-sim"><canvas class="building-canvas" id="cv-now"></canvas></div>
+      <div class="s-params">
+        <div class="param-row"><span class="param-key">Traffic Speed</span><span class="param-val">Variable</span></div>
+        <div class="param-row"><span class="param-key">Radius</span><span class="param-val">0.90 (risk)</span></div>
+        <div class="param-row"><span class="param-key">Multiplier</span><span class="param-val">1.0× (LSTM out)</span></div>
+        <div class="param-row"><span class="param-key">Opacity</span><span class="param-val">0.75</span></div>
+      </div>
+      <div class="s-narrative">LSTM output unmodified. Red cloud accumulates during peak congestion, breaching the 3rd-floor window at 8:05 AM.</div>
+      <div class="s-verdict">⬤&nbsp; The Crime Scene</div>
+    </div>
+
+    <!-- SSP1 -->
+    <div class="s-card ssp1">
+      <div class="s-header">
+        <div class="s-tag">SSP1 · 2050 · Best Case</div>
+        <div class="s-title">Sustainability</div>
+        <div class="s-subtitle">"Taking the Green Road"</div>
+      </div>
+      <div class="s-sim"><canvas class="building-canvas" id="cv-ssp1"></canvas></div>
+      <div class="s-params">
+        <div class="param-row"><span class="param-key">Traffic Speed</span><span class="param-val">30 mph locked</span></div>
+        <div class="param-row"><span class="param-key">Radius</span><span class="param-val">× 0.4 → 0.36</span></div>
+        <div class="param-row"><span class="param-key">Multiplier</span><span class="param-val">0.5× (electric)</span></div>
+        <div class="param-row"><span class="param-key">Opacity</span><span class="param-val">0.15</span></div>
+      </div>
+      <div class="s-narrative">High transit investment, electric freight, strict zoning. "Optimized" state becomes permanent reality. Spheres tiny and transparent.</div>
+      <div class="s-verdict">◯&nbsp; The Acquittal</div>
+    </div>
+
+    <!-- SSP3 -->
+    <div class="s-card ssp3">
+      <div class="s-header">
+        <div class="s-tag">SSP3 · 2050 · Worst Case</div>
+        <div class="s-title">Regional Rivalry</div>
+        <div class="s-subtitle">"A Rocky Road"</div>
+      </div>
+      <div class="s-sim"><canvas class="building-canvas" id="cv-ssp3"></canvas></div>
+      <div class="s-params">
+        <div class="param-row"><span class="param-key">Traffic Speed</span><span class="param-val">5 mph locked</span></div>
+        <div class="param-row"><span class="param-key">Radius</span><span class="param-val">× 1.5 → 1.2+</span></div>
+        <div class="param-row"><span class="param-key">Multiplier</span><span class="param-val">1.5× (diesel+heat)</span></div>
+        <div class="param-row"><span class="param-key">Opacity</span><span class="param-val">1.0 (black)</span></div>
+      </div>
+      <div class="s-narrative">Permanent gridlock. Aging diesel fleets + higher ambient heat. Spheres 150% larger, engulf building roof, turn near-black.</div>
+      <div class="s-verdict">◼&nbsp; The Death Sentence</div>
+    </div>
+
+    <!-- SSP4 -->
+    <div class="s-card ssp4">
+      <div class="s-header">
+        <div class="s-tag">SSP4 · 2050 · Forensic Match</div>
+        <div class="s-title">Inequality</div>
+        <div class="s-subtitle">"A Road Divided"</div>
+      </div>
+      <div class="s-sim"><canvas class="building-canvas" id="cv-ssp4"></canvas></div>
+      <div class="s-params">
+        <div class="param-row"><span class="param-key">Manhattan Side</span><span class="param-val" style="color:var(--ssp4a)">SSP1 (clean)</span></div>
+        <div class="param-row"><span class="param-key">Bronx Side</span><span class="param-val">SSP3 (toxic)</span></div>
+        <div class="param-row"><span class="param-key">Traffic</span><span class="param-val">Variable jams</span></div>
+        <div class="param-row"><span class="param-key">Target</span><span class="param-val">Low-income zones</span></div>
+      </div>
+      <div class="s-narrative">Elites in clean enclaves. Bronx left with high pollution, poor infrastructure. Toxicity is geographically targeted.</div>
+      <div class="s-verdict">◈&nbsp; Class-Specific Weapon</div>
+    </div>
+
+  </div>
+
+  <!-- PIPELINE TABLE -->
+  <div class="pipeline-section">
+    <div class="scenarios-label">Future Scenario Slider — "Game Mode" Logic Table</div>
+    <table class="pipeline-table">
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>Input Adjustment</th>
+          <th>Visual Outcome</th>
+          <th>Forensic Meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="td-scenario" style="color:var(--now)">Current (2024)</span></td>
+          <td><span class="td-code">LSTM Output unmodified</span></td>
+          <td style="color:var(--now)">Red cloud hits windows</td>
+          <td><span class="td-verdict" style="color:var(--now)">"The Crime Scene"</span></td>
+        </tr>
+        <tr>
+          <td><span class="td-scenario" style="color:var(--ssp1)">SSP1 · 2050</span></td>
+          <td><span class="td-code">Radius × 0.4</span></td>
+          <td style="color:var(--ssp1)">Cloud vanishes</td>
+          <td><span class="td-verdict" style="color:var(--ssp1)">"The Acquittal" — Policy fixed it</span></td>
+        </tr>
+        <tr>
+          <td><span class="td-scenario" style="color:var(--ssp3)">SSP3 · 2050</span></td>
+          <td><span class="td-code">Radius × 1.5</span></td>
+          <td style="color:var(--ssp3)">Cloud covers roof</td>
+          <td><span class="td-verdict" style="color:var(--ssp3)">"The Death Sentence" — Policy failed</span></td>
+        </tr>
+        <tr>
+          <td><span class="td-scenario" style="color:var(--ssp4b)">SSP4 · 2050</span></td>
+          <td><span class="td-code">Bronx: × 1.5 / Manhattan: × 0.4</span></td>
+          <td style="color:var(--ssp4b)">Split-screen divergence</td>
+          <td><span class="td-verdict" style="color:var(--ssp4b)">"Class-Specific Weapon" — Targeted accumulation</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SSP4 DUAL CITY -->
+  <div class="ssp4-section">
+    <div class="scenarios-label">SSP4 Split-Screen Visual Strategy — The Most Powerful Forensic Argument</div>
+    <div class="dual-city">
+      <div class="city-panel manhattan">
+        <div class="city-label">West Bank · SSP1 Conditions</div>
+        <div class="city-name">Manhattan</div>
+        <div class="city-ssp">Electric fleet · Radius × 0.4 · Opacity 0.1</div>
+        <div class="city-sim"><canvas class="city-canvas" id="cv-manhattan"></canvas></div>
+        <div class="city-desc">Green investment, smart flow, clean energy. Spheres barely visible. Windows clear. Air breathable.</div>
+      </div>
+      <div class="city-divider">East River</div>
+      <div class="city-panel bronx">
+        <div class="city-label">East Bank · SSP3 Conditions</div>
+        <div class="city-name">South Bronx</div>
+        <div class="city-ssp">Diesel fleet · Radius × 1.5 · Opacity 1.0</div>
+        <div class="city-sim"><canvas class="city-canvas" id="cv-bronx"></canvas></div>
+        <div class="city-desc">Aging infrastructure, permanent congestion, diesel exhaust. Building engulfed. Same city. Same river. Different future.</div>
+      </div>
+    </div>
+    <div class="forensic-argument">
+      <div class="fa-label">Forensic Argument · SSP4</div>
+      <div class="fa-text">
+        "Under SSP4, the toxicity you see in this simulation becomes a class-specific weapon.<br>
+        The accumulation is not random — it is geographically targeted."
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── PARTICLE SIMULATION ENGINE ───────────────────────────────────────────
+class BuildingSim {
+  constructor(canvas, opts) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.opts = opts;
+    // opts: { color, radius, opacity, speed, count, breach, split, splitColor }
+    this.particles = [];
+    this.frame = 0;
+    this.dpr = window.devicePixelRatio || 1;
+    this.resize();
+    this.init();
+    this.animate();
+  }
+
+  resize() {
+    const rect = this.canvas.getBoundingClientRect();
+    this.W = rect.width   || 240;
+    this.H = rect.height  || 180;
+    this.canvas.width  = this.W * this.dpr;
+    this.canvas.height = this.H * this.dpr;
+    this.ctx.scale(this.dpr, this.dpr);
+  }
+
+  init() {
+    this.particles = [];
+    const n = this.opts.count || 28;
+    for (let i = 0; i < n; i++) {
+      this.particles.push(this.makeParticle(true));
+    }
+  }
+
+  makeParticle(random) {
+    const W = this.W, H = this.H;
+    const roadY = H * 0.78;
+    return {
+      x: random ? (W * 0.1 + Math.random() * W * 0.8) : W * 0.5,
+      y: random ? (roadY + Math.random() * H * 0.18) : roadY + Math.random() * 8,
+      vx: (Math.random() - 0.5) * 0.4 * this.opts.speed,
+      vy: -(Math.random() * 0.5 + 0.2) * this.opts.speed,
+      r:  this.opts.radius * (0.7 + Math.random() * 0.6),
+      life: random ? Math.random() : 0,
+      maxLife: 1,
+    };
+  }
+
+  drawBuilding() {
+    const ctx = this.ctx;
+    const W = this.W, H = this.H;
+    const bw = W * 0.38, bh = H * 0.65;
+    const bx = W * 0.31, by = H * 0.12;
+
+    if (this.opts.split) {
+      // left half clean, right half building
+      const grad = ctx.createLinearGradient(0, 0, W, 0);
+      grad.addColorStop(0, '#0a1a0a');
+      grad.addColorStop(0.5, '#0a0f1a');
+      grad.addColorStop(1, '#150a0a');
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = '#0a0e18';
+    }
+    ctx.fillRect(0, 0, W, H);
+
+    // ground/road
+    ctx.fillStyle = '#0c1218';
+    ctx.fillRect(0, H * 0.78, W, H * 0.22);
+    ctx.fillStyle = '#1a2535';
+    ctx.fillRect(0, H * 0.78, W, 1);
+
+    // building silhouette
+    ctx.fillStyle = '#141e2d';
+    ctx.strokeStyle = '#1e3050';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.rect(bx, by, bw, bh);
+    ctx.fill(); ctx.stroke();
+
+    // windows
+    const cols = 3, rows = 5;
+    const ww = bw * 0.18, wh = bh * 0.1;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const wx = bx + bw * 0.12 + c * (bw * 0.3);
+        const wy = by + bh * 0.08 + r * (bh * 0.18);
+        // highlight 3rd floor windows (row index 2)
+        const isTarget = (r === 2);
+        ctx.fillStyle = isTarget
+          ? (this.opts.breached ? 'rgba(239,68,68,0.35)' : 'rgba(255,220,120,0.15)')
+          : 'rgba(100,160,220,0.08)';
+        ctx.strokeStyle = isTarget
+          ? (this.opts.breached ? 'rgba(239,68,68,0.5)' : 'rgba(255,200,80,0.2)')
+          : 'rgba(60,100,140,0.12)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.rect(wx, wy, ww, wh);
+        ctx.fill(); ctx.stroke();
+      }
+    }
+
+    // floor markers
+    ctx.strokeStyle = 'rgba(30,48,80,0.5)';
+    ctx.lineWidth = 0.5;
+    for (let r = 0; r < rows; r++) {
+      const fy = by + bh * 0.08 + r * (bh * 0.18) - 4;
+      ctx.beginPath();
+      ctx.moveTo(bx, fy); ctx.lineTo(bx + bw, fy);
+      ctx.stroke();
+    }
+
+    // road markings
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.setLineDash([12, 12]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.87); ctx.lineTo(W, H * 0.87);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // "3rd floor" label
+    const labelY = by + bh * 0.08 + 2 * (bh * 0.18);
+    ctx.fillStyle = 'rgba(239,68,68,0.5)';
+    ctx.font = `${6 * this.dpr / this.dpr}px JetBrains Mono`;
+    ctx.fillText('▶ 3F', bx - 22, labelY + 7);
+  }
+
+  drawParticles() {
+    const ctx = this.ctx;
+    const opts = this.opts;
+    const W = this.W, H = this.H;
+
+    this.particles.forEach(p => {
+      const alpha = Math.sin(p.life * Math.PI) * opts.opacity;
+      if (alpha <= 0) return;
+
+      // gradient sphere
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+      const [r,g,b] = opts.colorRGB;
+      grad.addColorStop(0,   `rgba(${r},${g},${b},${alpha * 0.9})`);
+      grad.addColorStop(0.5, `rgba(${r},${g},${b},${alpha * 0.5})`);
+      grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // glow
+      ctx.shadowColor = `rgba(${r},${g},${b},0.4)`;
+      ctx.shadowBlur = p.r * 1.5;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * 0.3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${r},${g},${b},${alpha * 0.4})`;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+  }
+
+  update() {
+    const W = this.W, H = this.H;
+    const spawnRate = this.opts.spawnRate || 0.4;
+    if (Math.random() < spawnRate) {
+      this.particles.push(this.makeParticle(false));
+    }
+    this.particles.forEach(p => {
+      p.x  += p.vx + (Math.random() - 0.5) * 0.3;
+      p.y  += p.vy;
+      p.life += 0.008;
+      if (p.life > 1 || p.y < -20 || p.x < -20 || p.x > W + 20) {
+        Object.assign(p, this.makeParticle(false));
+      }
+    });
+    if (this.particles.length > 80) this.particles.splice(0, 10);
+  }
+
+  animate() {
+    this.frame++;
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, this.W, this.H);
+    this.drawBuilding();
+    this.drawParticles();
+    this.update();
+    requestAnimationFrame(() => this.animate());
+  }
+}
+
+// ─── SPLIT SIMULATION (SSP4) ─────────────────────────────────────────────
+class SplitSim {
+  constructor(canvas, leftOpts, rightOpts) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.left  = leftOpts;
+    this.right = rightOpts;
+    this.particles = [];
+    this.frame = 0;
+    this.dpr = window.devicePixelRatio || 1;
+    this.resize();
+    this.init();
+    this.animate();
+  }
+  resize() {
+    const rect = this.canvas.getBoundingClientRect();
+    this.W = rect.width  || 280;
+    this.H = rect.height || 180;
+    this.canvas.width  = this.W * this.dpr;
+    this.canvas.height = this.H * this.dpr;
+    this.ctx.scale(this.dpr, this.dpr);
+  }
+  init() {
+    const mid = this.W * 0.5;
+    for (let i = 0; i < 12; i++) {
+      this.particles.push(this.makeP('left',  true));
+      this.particles.push(this.makeP('right', true));
+    }
+  }
+  makeP(side, rand) {
+    const W = this.W, H = this.H;
+    const mid = W * 0.5;
+    const roadY = H * 0.8;
+    const opts = side === 'left' ? this.left : this.right;
+    const xRange = side === 'left'
+      ? [W * 0.05, mid - 4]
+      : [mid + 4, W * 0.95];
+    return {
+      side,
+      x: rand ? (xRange[0] + Math.random() * (xRange[1]-xRange[0])) : (xRange[0] + (xRange[1]-xRange[0]) * 0.5),
+      y: rand ? (roadY + Math.random() * H * 0.15) : roadY,
+      vx: (Math.random() - 0.5) * 0.3 * opts.speed,
+      vy: -(Math.random() * 0.4 + 0.15) * opts.speed,
+      r: opts.radius * (0.7 + Math.random() * 0.6),
+      life: rand ? Math.random() : 0,
+    };
+  }
+  drawBg() {
+    const ctx = this.ctx;
+    const W = this.W, H = this.H;
+    const mid = W * 0.5;
+    ctx.fillStyle = '#06090c';
+    ctx.fillRect(0, 0, W, H);
+    // divider line
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(mid, 0); ctx.lineTo(mid, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // road
+    ctx.fillStyle = '#0c1218';
+    ctx.fillRect(0, H * 0.8, W, H * 0.2);
+    // buildings each side
+    const drawB = (bx, bw, accent) => {
+      const bh = H * 0.65, by = H * 0.12;
+      ctx.fillStyle = '#111a26';
+      ctx.strokeStyle = accent + '22';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.fill(); ctx.stroke();
+      // windows
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 2; c++) {
+          const wx = bx + bw * 0.15 + c * bw * 0.42;
+          const wy = by + bh * 0.1 + r * bh * 0.22;
+          ctx.fillStyle = r === 2 ? accent + '30' : 'rgba(80,120,180,0.07)';
+          ctx.strokeStyle = r === 2 ? accent + '50' : 'transparent';
+          ctx.lineWidth = 0.5;
+          ctx.beginPath(); ctx.rect(wx, wy, bw*0.24, bh*0.14); ctx.fill(); ctx.stroke();
+        }
+      }
+    };
+    drawB(W * 0.08, W * 0.34, '#38bdf8');
+    drawB(W * 0.58, W * 0.34, '#f97316');
+  }
+  drawParticles() {
+    const ctx = this.ctx;
+    this.particles.forEach(p => {
+      const opts = p.side === 'left' ? this.left : this.right;
+      const alpha = Math.sin(p.life * Math.PI) * opts.opacity;
+      if (alpha <= 0) return;
+      const [r,g,b] = opts.colorRGB;
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+      grad.addColorStop(0,   `rgba(${r},${g},${b},${alpha*0.85})`);
+      grad.addColorStop(0.6, `rgba(${r},${g},${b},${alpha*0.4})`);
+      grad.addColorStop(1,   `rgba(${r},${g},${b},0)`);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    });
+  }
+  update() {
+    const W = this.W, H = this.H;
+    const mid = W * 0.5;
+    ['left','right'].forEach(side => {
+      const opts = side === 'left' ? this.left : this.right;
+      if (Math.random() < opts.spawnRate) {
+        this.particles.push(this.makeP(side, false));
+      }
+    });
+    this.particles.forEach(p => {
+      p.x += p.vx + (Math.random()-0.5)*0.2;
+      p.y += p.vy;
+      p.life += 0.008;
+      const xRange = p.side === 'left' ? [-10, mid - 2] : [mid + 2, W + 10];
+      if (p.life > 1 || p.y < -20 || p.x < xRange[0] || p.x > xRange[1]) {
+        Object.assign(p, this.makeP(p.side, false));
+      }
+    });
+    if (this.particles.length > 100) this.particles.splice(0, 10);
+  }
+  animate() {
+    this.ctx.clearRect(0, 0, this.W, this.H);
+    this.drawBg();
+    this.drawParticles();
+    this.update();
+    requestAnimationFrame(() => this.animate());
+  }
+}
+
+// ─── INIT ALL SIMULATIONS ──────────────────────────────────────────────────
+window.addEventListener('load', () => {
+
+  new BuildingSim(document.getElementById('cv-now'), {
+    colorRGB: [239, 80, 40], radius: 18, opacity: 0.72, speed: 1.0,
+    count: 30, breached: true, spawnRate: 0.5,
+  });
+
+  new BuildingSim(document.getElementById('cv-ssp1'), {
+    colorRGB: [52, 211, 153], radius: 7, opacity: 0.28, speed: 0.6,
+    count: 12, breached: false, spawnRate: 0.2,
+  });
+
+  new BuildingSim(document.getElementById('cv-ssp3'), {
+    colorRGB: [60, 20, 10], radius: 30, opacity: 0.95, speed: 0.8,
+    count: 50, breached: true, spawnRate: 0.7,
+  });
+
+  new BuildingSim(document.getElementById('cv-ssp4'), {
+    colorRGB: [249, 115, 22], radius: 22, opacity: 0.8, speed: 0.9,
+    count: 36, breached: true, spawnRate: 0.55,
+  });
+
+  // dual-city Manhattan: tiny clean
+  new BuildingSim(document.getElementById('cv-manhattan'), {
+    colorRGB: [56, 189, 248], radius: 6, opacity: 0.22, speed: 0.7,
+    count: 10, breached: false, spawnRate: 0.15,
+  });
+
+  // dual-city Bronx: engulfed
+  new BuildingSim(document.getElementById('cv-bronx'), {
+    colorRGB: [200, 50, 10], radius: 28, opacity: 0.9, speed: 0.85,
+    count: 44, breached: true, spawnRate: 0.65,
+  });
+
+});
+</script>
+</body>
+</html>

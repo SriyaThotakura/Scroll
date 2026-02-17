@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Actor Network Diagram — The Multi-Layer Stack</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Bebas+Neue&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap');
+
+  :root {
+    --bg: #080c10;
+    --bg2: #0d1318;
+    --bg3: #111820;
+    --grid: #1a2535;
+    --text: #c8d8e8;
+    --muted: #4a6080;
+    --accent1: #ff4b2b;     /* Layer 1 — raw truth — red */
+    --accent2: #00c3ff;     /* Layer 2 — simulation — cyan */
+    --accent3: #7fff6e;     /* Layer 3 — narrative — green */
+    --warn: #ffb830;
+    --line: #1e3050;
+    --glow1: rgba(255,75,43,0.18);
+    --glow2: rgba(0,195,255,0.18);
+    --glow3: rgba(127,255,110,0.18);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.35;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+  }
+
+  /* ── HEADER ── */
+  header {
+    margin-bottom: 56px;
+    border-left: 3px solid var(--accent2);
+    padding-left: 20px;
+  }
+  header .eyebrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  header h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(36px, 5vw, 72px);
+    letter-spacing: 0.04em;
+    line-height: 1;
+    color: #fff;
+  }
+  header h1 span { color: var(--accent2); }
+  header p {
+    margin-top: 12px;
+    font-family: 'Crimson Pro', serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--muted);
+    max-width: 600px;
+    line-height: 1.6;
+  }
+
+  /* ── MAIN NETWORK CANVAS ── */
+  .network-section {
+    position: relative;
+    margin-bottom: 64px;
+  }
+
+  svg.network {
+    width: 100%;
+    height: auto;
+    display: block;
+    overflow: visible;
+  }
+
+  /* ── COMPARISON CARDS ── */
+  .comparison-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+
+  @media (max-width: 720px) {
+    .comparison-grid { grid-template-columns: 1fr; }
+  }
+
+  .cmp-card {
+    background: var(--bg3);
+    border: 1px solid var(--line);
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+  .cmp-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent1);
+  }
+  .cmp-card:hover { border-color: var(--accent1); }
+  .cmp-card .cmp-label {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--accent1);
+    margin-bottom: 10px;
+  }
+  .cmp-card h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 0.06em;
+    color: #fff;
+    margin-bottom: 14px;
+  }
+  .cmp-card .problem {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+    align-items: flex-start;
+  }
+  .cmp-card .problem .tag {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    background: rgba(255,75,43,0.12);
+    color: var(--accent1);
+    border: 1px solid rgba(255,75,43,0.3);
+    padding: 2px 7px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .cmp-card .problem p {
+    font-family: 'Crimson Pro', serif;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text);
+  }
+  .cmp-card .solution {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+  .cmp-card .solution .stag {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent3);
+    margin-bottom: 6px;
+  }
+  .cmp-card .solution p {
+    font-family: 'Crimson Pro', serif;
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.55;
+    color: #7fff6e99;
+  }
+
+  /* ── LEGEND ── */
+  .legend {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    padding: 16px 20px;
+    background: var(--bg2);
+    border: 1px solid var(--line);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .legend-line {
+    width: 28px; height: 2px;
+    flex-shrink: 0;
+  }
+
+  /* ── TOOLTIP ── */
+  .tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: #0d1318ee;
+    border: 1px solid var(--accent2);
+    padding: 12px 16px;
+    font-size: 12px;
+    line-height: 1.6;
+    max-width: 280px;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .tooltip.visible { opacity: 1; }
+  .tooltip strong { color: var(--accent2); display: block; margin-bottom: 4px; }
+  .tooltip span { color: var(--muted); font-size: 11px; }
+
+  /* ── PULSE ANIMATIONS ── */
+  @keyframes pulse1 {
+    0%,100% { opacity: 0.6; r: 4; }
+    50% { opacity: 1; r: 6; }
+  }
+  @keyframes pulse2 {
+    0%,100% { opacity: 0.6; r: 4; }
+    50% { opacity: 1; r: 6; }
+  }
+  @keyframes dash {
+    to { stroke-dashoffset: -30; }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .wrapper > * {
+    animation: fadeIn 0.6s ease both;
+  }
+  .wrapper > *:nth-child(1) { animation-delay: 0.05s; }
+  .wrapper > *:nth-child(2) { animation-delay: 0.15s; }
+  .wrapper > *:nth-child(3) { animation-delay: 0.25s; }
+  .wrapper > *:nth-child(4) { animation-delay: 0.35s; }
+</style>
+</head>
+<body>
+
+<div class="tooltip" id="tooltip">
+  <strong id="tt-title"></strong>
+  <span id="tt-body"></span>
+</div>
+
+<div class="wrapper">
+
+  <!-- HEADER -->
+  <header>
+    <div class="eyebrow">Actor Network Diagram · Forensic Air Quality Model</div>
+    <h1>The <span>Multi-Layer</span> Stack</h1>
+    <p>How raw numerical truth is translated into spatial, temporal consequence — from LSTM output to courtroom evidence.</p>
+  </header>
+
+  <!-- NETWORK DIAGRAM -->
+  <div class="network-section">
+    <svg class="network" viewBox="0 0 1100 620" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- glows -->
+        <filter id="glow1" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="6" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="glow2" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="8" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="glow3" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="softglow" x="-80%" y="-80%" width="360%" height="360%">
+          <feGaussianBlur stdDeviation="18" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <!-- arrowheads -->
+        <marker id="arrow-cyan" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#00c3ff" opacity="0.8"/>
+        </marker>
+        <marker id="arrow-red" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#ff4b2b" opacity="0.8"/>
+        </marker>
+        <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#7fff6e" opacity="0.8"/>
+        </marker>
+        <marker id="arrow-gold" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#ffb830" opacity="0.8"/>
+        </marker>
+        <!-- gradient fills -->
+        <radialGradient id="rg1" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ff4b2b" stop-opacity="0.22"/>
+          <stop offset="100%" stop-color="#ff4b2b" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="rg2" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#00c3ff" stop-opacity="0.22"/>
+          <stop offset="100%" stop-color="#00c3ff" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="rg3" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#7fff6e" stop-opacity="0.22"/>
+          <stop offset="100%" stop-color="#7fff6e" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+
+      <!-- ─── BACKGROUND LAYER BANDS ─── -->
+      <!-- Layer 1 band -->
+      <rect x="0" y="460" width="1100" height="160" fill="#ff4b2b" fill-opacity="0.03" rx="0"/>
+      <line x1="0" y1="460" x2="1100" y2="460" stroke="#ff4b2b" stroke-opacity="0.12" stroke-width="1"/>
+      <text x="16" y="478" font-family="'Space Mono',monospace" font-size="9" fill="#ff4b2b" opacity="0.4" letter-spacing="0.25em">LAYER 1 — THE EVIDENCE</text>
+
+      <!-- Layer 2 band -->
+      <rect x="0" y="240" width="1100" height="220" fill="#00c3ff" fill-opacity="0.025" rx="0"/>
+      <line x1="0" y1="240" x2="1100" y2="240" stroke="#00c3ff" stroke-opacity="0.1" stroke-width="1"/>
+      <text x="16" y="258" font-family="'Space Mono',monospace" font-size="9" fill="#00c3ff" opacity="0.4" letter-spacing="0.25em">LAYER 2 — THE RE-ENACTMENT</text>
+
+      <!-- Layer 3 band -->
+      <rect x="0" y="20" width="1100" height="220" fill="#7fff6e" fill-opacity="0.02" rx="0"/>
+      <line x1="0" y1="20" x2="1100" y2="20" stroke="#7fff6e" stroke-opacity="0.1" stroke-width="1"/>
+      <text x="16" y="38" font-family="'Space Mono',monospace" font-size="9" fill="#7fff6e" opacity="0.4" letter-spacing="0.25em">LAYER 3 — THE TESTIMONY</text>
+
+      <!-- ─── CONNECTIONS (drawn first, below nodes) ─── -->
+
+      <!-- L1 → L1: LSTM → CSV -->
+      <line x1="200" y1="530" x2="380" y2="530"
+        stroke="#ff4b2b" stroke-width="1.5" stroke-opacity="0.4"
+        stroke-dasharray="6 4" marker-end="url(#arrow-red)">
+        <animate attributeName="stroke-dashoffset" from="0" to="-30" dur="2s" repeatCount="indefinite"/>
+      </line>
+      <text x="290" y="522" font-family="'Space Mono',monospace" font-size="8" fill="#ff4b2b" opacity="0.5" text-anchor="middle">outputs</text>
+
+      <!-- L1 CSV → L2 Grasshopper -->
+      <path d="M480,490 C480,420 340,400 340,360"
+        stroke="#ff4b2b" stroke-width="1.5" fill="none" stroke-opacity="0.55"
+        stroke-dasharray="8 4" marker-end="url(#arrow-red)">
+        <animate attributeName="stroke-dashoffset" from="0" to="-36" dur="2.4s" repeatCount="indefinite"/>
+      </path>
+      <text x="390" y="430" font-family="'Space Mono',monospace" font-size="8" fill="#ff4b2b" opacity="0.5" transform="rotate(-52,390,430)">feeds risk score</text>
+
+      <!-- L1 LSTM → L2 Grasshopper (direct) -->
+      <path d="M200,490 C200,430 260,400 290,375"
+        stroke="#ff4b2b" stroke-width="1.2" fill="none" stroke-opacity="0.35"
+        stroke-dasharray="5 5" marker-end="url(#arrow-red)">
+        <animate attributeName="stroke-dashoffset" from="0" to="-30" dur="3s" repeatCount="indefinite"/>
+      </path>
+
+      <!-- L2 Grasshopper → L2: Spheres & Jitter -->
+      <line x1="410" y1="340" x2="590" y2="340"
+        stroke="#00c3ff" stroke-width="1.5" stroke-opacity="0.5"
+        stroke-dasharray="6 4" marker-end="url(#arrow-cyan)">
+        <animate attributeName="stroke-dashoffset" from="0" to="-30" dur="2.2s" repeatCount="indefinite"/>
+      </line>
+      <text x="500" y="330" font-family="'Space Mono',monospace" font-size="8" fill="#00c3ff" opacity="0.5" text-anchor="middle">generates</text>
+
+      <!-- L2 Spheres → L2 Radius -->
+      <line x1="660" y1="340" x2="800" y2="340"
+        stroke="#00c3ff" stroke-width="1.5" stroke-opacity="0.45"
+        stroke-dasharray="6 4" marker-end="url(#arrow-cyan)">
+        <animate attributeName="stroke-dashoffset" from="0" to="-30" dur="2.5s" repeatCount="indefinite"/>
+      </line>
+      <text x="730" y="330" font-family="'Space Mono',monospace" font-size="8" fill="#00c3ff" opacity="0.5" text-anchor="middle">scales</text>
+
+      <!-- L2 Radius → L3 React -->
+      <path d="M860,300 C860,240 700,200 700,160"
+        stroke="#00c3ff" stroke-width="1.8" fill="none" stroke-opacity="0.6"
+        marker-end="url(#arrow-cyan)">
+        <animate attributeName="stroke-dashoffset" from="0" to="-36" dur="2.8s" repeatCount="indefinite"/>
+      </path>
+      <text x="800" y="230" font-family="'Space Mono',monospace" font-size="8" fill="#00c3ff" opacity="0.55" transform="rotate(-62,800,230)">renders 3D scene</text>
+
+      <!-- L2 GH Script → L3 Game Mode -->
+      <path d="M340,300 C340,230 500,190 500,160"
+        stroke="#00c3ff" stroke-width="1.4" fill="none" stroke-opacity="0.4"
+        stroke-dasharray="7 4" marker-end="url(#arrow-cyan)">
+        <animate attributeName="stroke-dashoffset" from="0" to="-33" dur="3.2s" repeatCount="indefinite"/>
+      </path>
+
+      <!-- L3: React → Game Mode -->
+      <line x1="760" y1="120" x2="900" y2="120"
+        stroke="#7fff6e" stroke-width="1.5" stroke-opacity="0.5"
+        stroke-dasharray="6 4" marker-end="url(#arrow-green)">
+        <animate attributeName="stroke-dashoffset" from="0" to="-30" dur="2s" repeatCount="indefinite"/>
+      </line>
+      <text x="830" y="112" font-family="'Space Mono',monospace" font-size="8" fill="#7fff6e" opacity="0.5" text-anchor="middle">embeds</text>
+
+      <!-- L3: Game Mode → Audience/Outcome node -->
+      <path d="M980,120 C1060,120 1060,310 1060,400"
+        stroke="#7fff6e" stroke-width="2" fill="none" stroke-opacity="0.55"
+        marker-end="url(#arrow-green)">
+      </path>
+      <text x="1075" y="270" font-family="'Space Mono',monospace" font-size="8" fill="#7fff6e" opacity="0.5" transform="rotate(90,1075,270)">delivers consequence</text>
+
+      <!-- L1 → Outcome (without layers = failure) -->
+      <path d="M480,540 C620,560 900,560 1060,500"
+        stroke="#ff4b2b" stroke-width="1.2" fill="none" stroke-opacity="0.2"
+        stroke-dasharray="4 8" marker-end="url(#arrow-red)">
+      </path>
+      <text x="780" y="578" font-family="'Space Mono',monospace" font-size="8" fill="#ff4b2b" opacity="0.3" text-anchor="middle">direct model → invisible</text>
+
+      <!-- GIS failure path -->
+      <path d="M200,540 C200,600 700,610 900,580"
+        stroke="#ffb830" stroke-width="1" fill="none" stroke-opacity="0.2"
+        stroke-dasharray="3 8">
+      </path>
+      <text x="550" y="614" font-family="'Space Mono',monospace" font-size="8" fill="#ffb830" opacity="0.28" text-anchor="middle">GIS → 2D only, no verticality</text>
+
+      <!-- ─── NODE HALOS ─── -->
+      <circle cx="200" cy="530" r="55" fill="url(#rg1)" opacity="0.7"/>
+      <circle cx="460" cy="530" r="55" fill="url(#rg1)" opacity="0.7"/>
+      <circle cx="340" cy="340" r="60" fill="url(#rg2)" opacity="0.6"/>
+      <circle cx="630" cy="340" r="55" fill="url(#rg2)" opacity="0.6"/>
+      <circle cx="860" cy="340" r="55" fill="url(#rg2)" opacity="0.6"/>
+      <circle cx="700" cy="120" r="60" fill="url(#rg3)" opacity="0.6"/>
+      <circle cx="950" cy="120" r="55" fill="url(#rg3)" opacity="0.6"/>
+      <circle cx="1060" cy="430" r="62" fill="#ffb830" fill-opacity="0.06"/>
+
+      <!-- ─── LAYER 1 NODES ─── -->
+
+      <!-- Node: LSTM Policy Model -->
+      <g class="node" data-title="LSTM Policy Model" data-body="Trained on traffic + pollution time-series. Outputs a risk_score per timestep. Pure numbers — accurate but invisible to non-specialists."
+         transform="translate(200,530)" style="cursor:pointer">
+        <rect x="-75" y="-35" width="150" height="70" rx="4"
+          fill="#0d1318" stroke="#ff4b2b" stroke-width="1.5" stroke-opacity="0.8"/>
+        <rect x="-75" y="-35" width="150" height="4" rx="2" fill="#ff4b2b" opacity="0.7"/>
+        <text y="-12" font-family="'Bebas Neue',sans-serif" font-size="16" fill="#ff4b2b" text-anchor="middle" filter="url(#glow1)">LSTM</text>
+        <text y="4" font-family="'Bebas Neue',sans-serif" font-size="13" fill="#ff4b2b" text-anchor="middle" opacity="0.7">Policy Model</text>
+        <text y="22" font-family="'Space Mono',monospace" font-size="8" fill="#ff4b2b" opacity="0.45" text-anchor="middle">risk_score: 0.90</text>
+        <circle cx="62" cy="-28" r="4" fill="#ff4b2b" opacity="0.9" filter="url(#glow1)">
+          <animate attributeName="opacity" values="0.9;0.3;0.9" dur="2s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+      <!-- Node: CSV Files -->
+      <g class="node" data-title="CSV Data Files" data-body="gh_state_CONGESTED.csv etc. — tabular records of speed, PM2.5 density, timestep, spatial coordinates. Machine-readable truth."
+         transform="translate(460,530)" style="cursor:pointer">
+        <rect x="-75" y="-35" width="150" height="70" rx="4"
+          fill="#0d1318" stroke="#ff4b2b" stroke-width="1.5" stroke-opacity="0.8"/>
+        <rect x="-75" y="-35" width="150" height="4" rx="2" fill="#ff4b2b" opacity="0.7"/>
+        <text y="-12" font-family="'Bebas Neue',sans-serif" font-size="16" fill="#ff4b2b" text-anchor="middle" filter="url(#glow1)">CSV Files</text>
+        <text y="4" font-family="'Space Mono',monospace" font-size="8" fill="#ff4b2b" opacity="0.6" text-anchor="middle">gh_state_CONGESTED</text>
+        <text y="19" font-family="'Space Mono',monospace" font-size="8" fill="#ff4b2b" opacity="0.4" text-anchor="middle">FREEFLOW | INCIDENT</text>
+      </g>
+
+      <!-- Layer 1 role badge -->
+      <text x="50" y="594" font-family="'Bebas Neue',sans-serif" font-size="13" fill="#ff4b2b" opacity="0.5" letter-spacing="0.1em">ROLE: PROVIDES TRUTH</text>
+
+      <!-- ─── LAYER 2 NODES ─── -->
+
+      <!-- Node: Grasshopper/Rhino -->
+      <g class="node" data-title="Grasshopper / Rhino Script" data-body="Parametric 3D engine. Reads risk_score → maps to sphere radius and jitter intensity. Translates 0.90 into expanding physical geometry."
+         transform="translate(340,340)" style="cursor:pointer">
+        <rect x="-85" y="-40" width="170" height="80" rx="4"
+          fill="#0d1318" stroke="#00c3ff" stroke-width="1.5" stroke-opacity="0.8"/>
+        <rect x="-85" y="-40" width="170" height="4" rx="2" fill="#00c3ff" opacity="0.7"/>
+        <text y="-15" font-family="'Bebas Neue',sans-serif" font-size="16" fill="#00c3ff" text-anchor="middle" filter="url(#glow2)">Grasshopper</text>
+        <text y="3" font-family="'Bebas Neue',sans-serif" font-size="13" fill="#00c3ff" text-anchor="middle" opacity="0.7">/ Rhino Script</text>
+        <text y="22" font-family="'Space Mono',monospace" font-size="8" fill="#00c3ff" opacity="0.4" text-anchor="middle">spheres · jitter · radius</text>
+        <circle cx="72" cy="-33" r="4" fill="#00c3ff" opacity="0.9" filter="url(#glow2)">
+          <animate attributeName="opacity" values="0.9;0.3;0.9" dur="2.4s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+      <!-- Node: Spheres -->
+      <g class="node" data-title="Sphere Geometry" data-body="Each gas particle is a sphere. Volume encodes concentration. Position encodes spatial spread from road to building facade."
+         transform="translate(630,340)" style="cursor:pointer">
+        <rect x="-65" y="-38" width="130" height="76" rx="4"
+          fill="#0d1318" stroke="#00c3ff" stroke-width="1.2" stroke-opacity="0.6"/>
+        <rect x="-65" y="-38" width="130" height="3" rx="2" fill="#00c3ff" opacity="0.5"/>
+        <text y="-14" font-family="'Bebas Neue',sans-serif" font-size="15" fill="#00c3ff" text-anchor="middle" opacity="0.85">Sphere</text>
+        <text y="2" font-family="'Bebas Neue',sans-serif" font-size="15" fill="#00c3ff" text-anchor="middle" opacity="0.85">Geometry</text>
+        <text y="22" font-family="'Space Mono',monospace" font-size="7.5" fill="#00c3ff" opacity="0.35" text-anchor="middle">particle cloud</text>
+      </g>
+
+      <!-- Node: Radius (0.75) -->
+      <g class="node" data-title="Radius Parameter" data-body="0.75 radius = physical collision with a 3rd-floor bedroom window. Statistics become spatial consequence. The number gains a body."
+         transform="translate(860,340)" style="cursor:pointer">
+        <rect x="-65" y="-38" width="130" height="76" rx="4"
+          fill="#0d1318" stroke="#00c3ff" stroke-width="1.2" stroke-opacity="0.6"/>
+        <rect x="-65" y="-38" width="130" height="3" rx="2" fill="#00c3ff" opacity="0.5"/>
+        <text y="-14" font-family="'Bebas Neue',sans-serif" font-size="15" fill="#00c3ff" text-anchor="middle" opacity="0.85">Radius</text>
+        <text y="2" font-family="'Space Mono',monospace" font-size="13" fill="#00c3ff" text-anchor="middle" opacity="0.9" filter="url(#glow2)">0.75</text>
+        <text y="22" font-family="'Space Mono',monospace" font-size="7.5" fill="#00c3ff" opacity="0.35" text-anchor="middle">→ window collision</text>
+      </g>
+
+      <!-- Layer 2 role badge -->
+      <text x="50" y="406" font-family="'Bebas Neue',sans-serif" font-size="13" fill="#00c3ff" opacity="0.5" letter-spacing="0.1em">ROLE: PROVIDES MECHANISM</text>
+
+      <!-- ─── LAYER 3 NODES ─── -->
+
+      <!-- Node: React Website -->
+      <g class="node" data-title="React Website Interface" data-body="Narrative wrapper. Controls camera, timing, annotation overlays. Forces the audience to witness the breach event at the precise moment it occurs."
+         transform="translate(700,120)" style="cursor:pointer">
+        <rect x="-80" y="-42" width="160" height="84" rx="4"
+          fill="#0d1318" stroke="#7fff6e" stroke-width="1.5" stroke-opacity="0.8"/>
+        <rect x="-80" y="-42" width="160" height="4" rx="2" fill="#7fff6e" opacity="0.7"/>
+        <text y="-17" font-family="'Bebas Neue',sans-serif" font-size="16" fill="#7fff6e" text-anchor="middle" filter="url(#glow3)">React Website</text>
+        <text y="2" font-family="'Bebas Neue',sans-serif" font-size="13" fill="#7fff6e" text-anchor="middle" opacity="0.7">Narrative Interface</text>
+        <text y="24" font-family="'Space Mono',monospace" font-size="7.5" fill="#7fff6e" opacity="0.4" text-anchor="middle">breach moment · annotations</text>
+        <circle cx="67" cy="-35" r="4" fill="#7fff6e" opacity="0.9" filter="url(#glow3)">
+          <animate attributeName="opacity" values="0.9;0.3;0.9" dur="1.8s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+      <!-- Node: Game Mode -->
+      <g class="node" data-title='"Game Mode" Interface' data-body='Interactive step-through. User controls time. Forces them to experience rate of accumulation — how quickly air turns toxic as speed drops from 60→0 mph.'
+         transform="translate(950,120)" style="cursor:pointer">
+        <rect x="-70" y="-38" width="140" height="76" rx="4"
+          fill="#0d1318" stroke="#7fff6e" stroke-width="1.2" stroke-opacity="0.6"/>
+        <rect x="-70" y="-38" width="140" height="3" rx="2" fill="#7fff6e" opacity="0.5"/>
+        <text y="-14" font-family="'Bebas Neue',sans-serif" font-size="15" fill="#7fff6e" text-anchor="middle" opacity="0.85">"Game Mode"</text>
+        <text y="4" font-family="'Space Mono',monospace" font-size="8" fill="#7fff6e" opacity="0.5" text-anchor="middle">interactive timeline</text>
+        <text y="20" font-family="'Space Mono',monospace" font-size="7.5" fill="#7fff6e" opacity="0.35" text-anchor="middle">user controls time</text>
+      </g>
+
+      <!-- Layer 3 role badge -->
+      <text x="50" y="58" font-family="'Bebas Neue',sans-serif" font-size="13" fill="#7fff6e" opacity="0.5" letter-spacing="0.1em">ROLE: PROVIDES CONTEXT</text>
+
+      <!-- ─── OUTCOME NODE ─── -->
+      <g class="node" data-title="Audience / Decision-Maker" data-body="Jury, policymaker, journalist. They do not see 0.90. They see a red sphere colliding with a window. Spatial urgency is communicated. Evidence becomes consequence."
+         transform="translate(1060,430)" style="cursor:pointer">
+        <rect x="-68" y="-50" width="136" height="100" rx="4"
+          fill="#0a1520" stroke="#ffb830" stroke-width="2" stroke-opacity="0.9"/>
+        <rect x="-68" y="-50" width="136" height="4" rx="2" fill="#ffb830" opacity="0.8"/>
+        <text y="-26" font-family="'Bebas Neue',sans-serif" font-size="13" fill="#ffb830" text-anchor="middle" filter="url(#glow1)">Audience</text>
+        <text y="-10" font-family="'Bebas Neue',sans-serif" font-size="11" fill="#ffb830" text-anchor="middle" opacity="0.7">/ Decision-Maker</text>
+        <text y="10" font-family="'Space Mono',monospace" font-size="7" fill="#ffb830" opacity="0.45" text-anchor="middle">jury · policymaker</text>
+        <text y="24" font-family="'Space Mono',monospace" font-size="7" fill="#ffb830" opacity="0.45" text-anchor="middle">journalist · resident</text>
+        <circle cx="55" cy="-43" r="5" fill="#ffb830" opacity="0.9" filter="url(#glow1)">
+          <animate attributeName="opacity" values="1;0.4;1" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+
+      <!-- ─── LIMITATION CALLOUTS ─── -->
+      <!-- L1 limitation -->
+      <g transform="translate(160,592)">
+        <rect x="-55" y="-12" width="110" height="22" rx="2"
+          fill="#ff4b2b" fill-opacity="0.07" stroke="#ff4b2b" stroke-opacity="0.2" stroke-width="0.5"/>
+        <text y="4" font-family="'Space Mono',monospace" font-size="7.5" fill="#ff4b2b" opacity="0.5" text-anchor="middle">⚠ invisible to jury</text>
+      </g>
+
+      <!-- L2 limitation -->
+      <g transform="translate(340,296)">
+        <rect x="-62" y="-12" width="124" height="22" rx="2"
+          fill="#00c3ff" fill-opacity="0.07" stroke="#00c3ff" stroke-opacity="0.2" stroke-width="0.5"/>
+        <text y="4" font-family="'Space Mono',monospace" font-size="7.5" fill="#00c3ff" opacity="0.5" text-anchor="middle">⚠ abstract without context</text>
+      </g>
+
+      <!-- L3 limitation -->
+      <g transform="translate(700,74)">
+        <rect x="-58" y="-12" width="116" height="22" rx="2"
+          fill="#7fff6e" fill-opacity="0.07" stroke="#7fff6e" stroke-opacity="0.2" stroke-width="0.5"/>
+        <text y="4" font-family="'Space Mono',monospace" font-size="7.5" fill="#7fff6e" opacity="0.5" text-anchor="middle">⚠ subjective / guides eye</text>
+      </g>
+
+    </svg>
+  </div>
+
+  <!-- LEGEND -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#ff4b2b"></div>
+      <span>Layer 1 — Evidence (Truth)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#00c3ff"></div>
+      <span>Layer 2 — Simulation (Mechanism)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#7fff6e"></div>
+      <span>Layer 3 — Interface (Context)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#ffb830"></div>
+      <span>Audience / Outcome</span>
+    </div>
+    <div class="legend-item" style="margin-left:auto">
+      <div class="legend-line" style="background:repeating-linear-gradient(90deg,#ff4b2b 0,#ff4b2b 6px,transparent 6px,transparent 10px)"></div>
+      <span style="color:#666">Direct model (fails)</span>
+    </div>
+  </div>
+
+  <!-- COMPARISON CARDS -->
+  <div class="comparison-grid">
+
+    <div class="cmp-card">
+      <div class="cmp-label">Failure Mode 01</div>
+      <h3>Why NOT just the Direct Model?</h3>
+      <div class="problem">
+        <span class="tag">Problem</span>
+        <p>"0.75 Radius" is just a number. A chart of LSTM outputs fails to communicate <em>Spatial Urgency</em>. The jury sees an abstraction, not a consequence.</p>
+      </div>
+      <div class="solution">
+        <div class="stag">Multi-Layer Solution</div>
+        <p>0.75 isn't a number — it is a physical collision with a bedroom window. Statistics become consequence.</p>
+      </div>
+    </div>
+
+    <div class="cmp-card" style="--accent1:#ffb830">
+      <div class="cmp-label" style="color:var(--warn)">Failure Mode 02</div>
+      <h3 style="color:#fff">Why NOT standard GIS?</h3>
+      <div class="problem">
+        <span class="tag" style="background:rgba(255,184,48,0.1);color:var(--warn);border-color:rgba(255,184,48,0.3)">2D</span>
+        <p>A heatmap shows pollution on the ground. Your argument is about vertical breach — pollution rising 30 ft to hit the 3rd floor. GIS cannot show height of the plume relative to the building facade.</p>
+      </div>
+      <div class="problem" style="margin-top:8px">
+        <span class="tag" style="background:rgba(255,184,48,0.1);color:var(--warn);border-color:rgba(255,184,48,0.3)">Static</span>
+        <p>GIS captures the crime scene. The Multi-Layer model captures the crime being committed — the rate of accumulation as speed drops.</p>
+      </div>
+      <div class="solution">
+        <div class="stag" style="color:var(--warn)">Multi-Layer Solution</div>
+        <p>Verticality + Time = arguments GIS can never make. The simulation lives in 3D and in motion.</p>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  const tooltip = document.getElementById('tooltip');
+  const ttTitle = document.getElementById('tt-title');
+  const ttBody  = document.getElementById('tt-body');
+
+  document.querySelectorAll('.node').forEach(node => {
+    node.addEventListener('mouseenter', e => {
+      const g = e.currentTarget.closest('[data-title]') || e.currentTarget;
+      ttTitle.textContent = g.dataset.title;
+      ttBody.textContent  = g.dataset.body;
+      tooltip.classList.add('visible');
+    });
+    node.addEventListener('mousemove', e => {
+      tooltip.style.left = (e.clientX + 16) + 'px';
+      tooltip.style.top  = (e.clientY + 16) + 'px';
+    });
+    node.addEventListener('mouseleave', () => {
+      tooltip.classList.remove('visible');
+    });
+  });
+</script>
+</body>
+</html>
