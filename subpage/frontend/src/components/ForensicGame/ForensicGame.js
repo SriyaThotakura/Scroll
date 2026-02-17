@@ -356,7 +356,7 @@ const SimulationHUD = ({ onComplete, gameState, setGameState }) => {
         <video
           ref={videoRef}
           className="simulation-video"
-          src="/forensic-assets/ezgif.com-split.mp4"
+          src={process.env.PUBLIC_URL + '/forensic-assets/ezgif.com-split.mp4'}
           onEnded={handleVideoEnd}
         />
 
@@ -523,20 +523,21 @@ const DebriefScreen = ({ onComplete, gameState }) => {
   const [asthmaData, setAsthmaData] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
+  const PU = process.env.PUBLIC_URL;
   const evidenceImages = [
-    { src: '/forensic-assets/google-earth-view.png', caption: 'Satellite view: Expressway cuts through neighborhood' },
-    { src: '/forensic-assets/bruckner-overview.jpg', caption: 'Aerial View: 40-foot sunken trench' },
-    { src: '/forensic-assets/screenshot1.png', caption: 'Ground-level: Residential proximity to highway' },
-    { src: '/forensic-assets/highway-detail.jpg', caption: 'Cross-Bronx Expressway canyon design' },
-    { src: '/forensic-assets/screenshot2.png', caption: 'Community impact: Homes within exhaust zone' },
-    { src: '/forensic-assets/residential-zone.jpg', caption: 'Residential buildings at trench edge' }
+    { src: PU + '/forensic-assets/google-earth-view.png', caption: 'Satellite view: Expressway cuts through neighborhood' },
+    { src: PU + '/forensic-assets/bruckner-overview.jpg', caption: 'Aerial View: 40-foot sunken trench' },
+    { src: PU + '/forensic-assets/screenshot1.png', caption: 'Ground-level: Residential proximity to highway' },
+    { src: PU + '/forensic-assets/highway-detail.jpg', caption: 'Cross-Bronx Expressway canyon design' },
+    { src: PU + '/forensic-assets/screenshot2.png', caption: 'Community impact: Homes within exhaust zone' },
+    { src: PU + '/forensic-assets/residential-zone.jpg', caption: 'Residential buildings at trench edge' }
   ];
 
   useEffect(() => {
     setTimeout(() => setDataRevealed(true), 500);
 
     // Load asthma GeoJSON
-    fetch('/Asthma_Index_Rates.geojson')
+    fetch(process.env.PUBLIC_URL + '/Asthma_Index_Rates.geojson')
       .then(res => res.json())
       .then(data => setAsthmaData(data))
       .catch(err => console.error('Failed to load asthma data:', err));
@@ -1016,28 +1017,28 @@ const EvidenceLabScreen = ({ onComplete, gameState }) => {
       id: 'network-map',
       title: 'FORENSIC UTILITY TOOL',
       subtitle: 'Actor Network & System Map',
-      file: '/forensic-network-map.html',
+      file: process.env.PUBLIC_URL + '/forensic-network-map.html',
       badge: 'SYSTEM ARCHITECTURE'
     },
     {
       id: 'actor-network',
       title: 'MULTI-LAYER STACK',
       subtitle: 'Raw Truth → Spatial Consequence',
-      file: '/actor_network_diagram.html',
+      file: process.env.PUBLIC_URL + '/actor_network_diagram.html',
       badge: 'EVIDENCE PIPELINE'
     },
     {
       id: 'model-comparison',
       title: 'MODEL SELECTION',
       subtitle: 'Why LSTM Wins the Argument',
-      file: '/model_comparison.html',
+      file: process.env.PUBLIC_URL + '/model_comparison.html',
       badge: 'SCIENTIFIC PROOF'
     },
     {
       id: 'ssp-scenarios',
       title: 'CLIMATE SCENARIOS',
       subtitle: 'SSP Future Projections',
-      file: '/ssp_scenario_diagram.html',
+      file: process.env.PUBLIC_URL + '/ssp_scenario_diagram.html',
       badge: 'PREDICTIVE ANALYSIS'
     }
   ];
