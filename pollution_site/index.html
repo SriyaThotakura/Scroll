@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cross Bronx Pollution Analysis</title>
+    <style>
+        body { margin: 0; background: #222; font-family: 'Courier New', Courier, monospace; color: white; overflow: hidden; }
+        
+        #container { position: relative; width: 100vw; height: 100vh; }
+        
+        /* All images stacked on top of each other */
+        .layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transition: opacity 0.8s ease-in-out;
+            opacity: 0;
+        }
+
+        /* Show the active layer */
+        .active { opacity: 1; }
+
+        #ui {
+            position: absolute; bottom: 40px; left: 40px; z-index: 100;
+            background: rgba(0,0,0,0.8); padding: 20px; border: 1px solid #444;
+        }
+
+        button {
+            background: #333; color: white; border: 1px solid #666;
+            padding: 10px 20px; cursor: pointer; margin-right: 10px;
+        }
+
+        button:hover { background: #ed1c24; }
+        button.selected { background: #ed1c24; border-color: white; }
+    </style>
+</head>
+<body>
+
+<div id="container">
+    <img src="layer_clean.png" id="img-clean" class="layer active">
+    <img src="Mid_toxic.png" id="img-mid" class="layer">
+    <img src="layer_toxic.png" id="img-toxic" class="layer">
+
+    <div id="ui">
+        <h2>EMISSION INTENSITY</h2>
+        <p>Projected PM2.5 Spread - Cross Bronx Expressway</p>
+        <button onclick="showLayer('clean', this)" class="selected">MIDNIGHT (R:9)</button>
+        <button onclick="showLayer('mid', this)">MID-Volume (R:25)</button>
+        <button onclick="showLayer('toxic', this)">RUSH HOUR (R:75)</button>
+    </div>
+</div>
+
+<script>
+    function showLayer(stage, btn) {
+        // Hide all layers
+        document.querySelectorAll('.layer').forEach(img => img.classList.remove('active'));
+        // Remove selected class from all buttons
+        document.querySelectorAll('button').forEach(b => b.classList.remove('selected'));
+        
+        // Show the chosen one
+        document.getElementById('img-' + stage).classList.add('active');
+        btn.classList.add('selected');
+    }
+</script>
+
+</body>
+</html>

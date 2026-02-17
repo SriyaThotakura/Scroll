@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forensic Utility Tool — Actor Network Map</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #0a0c0e;
+    --grid: #141820;
+    --amber: #f5a623;
+    --red: #e63946;
+    --cyan: #4cc9f0;
+    --green: #57cc99;
+    --muted: #3a4250;
+    --text: #c8d0dc;
+    --white: #eef2f7;
+    --glow-amber: rgba(245,166,35,0.15);
+    --glow-red: rgba(230,57,70,0.15);
+    --glow-cyan: rgba(76,201,240,0.15);
+    --glow-green: rgba(87,204,153,0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Scanline overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.06) 2px,
+      rgba(0,0,0,0.06) 4px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    position: relative;
+    z-index: 10;
+    padding: 32px 40px 20px;
+    border-bottom: 1px solid var(--muted);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .header-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(28px, 4vw, 52px);
+    letter-spacing: 0.06em;
+    color: var(--white);
+    line-height: 1;
+  }
+
+  .header-title span { color: var(--amber); }
+
+  .header-meta {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    line-height: 1.8;
+  }
+
+  .header-meta b { color: var(--cyan); }
+
+  /* Legend */
+  .legend {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    gap: 24px;
+    padding: 12px 40px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    flex-wrap: wrap;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Canvas wrapper */
+  .canvas-wrap {
+    position: relative;
+    z-index: 5;
+    width: 100%;
+    overflow: auto;
+    padding: 20px 0;
+  }
+
+  svg {
+    display: block;
+    margin: 0 auto;
+    overflow: visible;
+  }
+
+  /* Node styles */
+  .node { cursor: pointer; }
+
+  .node:hover .node-body {
+    filter: brightness(1.25) drop-shadow(0 0 16px currentColor);
+    transition: filter 0.2s;
+  }
+
+  .node-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    fill: var(--text);
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+  }
+
+  .node-sublabel {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    fill: var(--muted);
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+    letter-spacing: 0.04em;
+  }
+
+  /* Edges */
+  .edge {
+    fill: none;
+    stroke-width: 1.5;
+    opacity: 0.45;
+  }
+
+  .edge-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    fill: var(--muted);
+    text-anchor: middle;
+    letter-spacing: 0.06em;
+  }
+
+  /* Tooltip */
+  #tooltip {
+    position: fixed;
+    z-index: 100;
+    background: rgba(10,12,14,0.96);
+    border: 1px solid var(--amber);
+    padding: 14px 18px;
+    max-width: 280px;
+    pointer-events: none;
+    display: none;
+    box-shadow: 0 0 24px rgba(245,166,35,0.2);
+  }
+
+  #tooltip .tip-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    color: var(--amber);
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+
+  #tooltip .tip-body {
+    font-size: 10px;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  #tooltip .tip-tag {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 2px 6px;
+    border: 1px solid;
+  }
+
+  /* Pulse animation */
+  @keyframes pulse-ring {
+    0%   { r: 0; opacity: 0.6; }
+    100% { r: 60; opacity: 0; }
+  }
+
+  .pulse-ring {
+    animation: pulse-ring 2.5s ease-out infinite;
+  }
+
+  /* Info panel */
+  .info-panel {
+    position: relative;
+    z-index: 10;
+    margin: 0 40px 32px;
+    padding: 16px 20px;
+    background: rgba(245,166,35,0.04);
+    border: 1px solid rgba(245,166,35,0.2);
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .info-col { flex: 1; min-width: 200px; }
+
+  .info-col h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    color: var(--amber);
+    margin-bottom: 8px;
+  }
+
+  .info-col p {
+    font-size: 9px;
+    line-height: 1.8;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .stat {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    color: var(--white);
+    letter-spacing: 0.05em;
+    line-height: 1;
+    margin: 4px 0 2px;
+  }
+
+  .stat span { color: var(--red); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="header-title">FORENSIC <span>UTILITY</span> TOOL</div>
+    <div class="header-title" style="font-size: clamp(14px,2vw,22px); color: var(--muted); margin-top:4px;">Actor Network & System Map</div>
+  </div>
+  <div class="header-meta">
+    <b>MODE:</b> CRITIQUE → EMPOWERMENT<br>
+    <b>CORE:</b> LSTM + MONTE CARLO + GRASSHOPPER<br>
+    <b>TARGET:</b> REGULATORY SPILLOVER EXPOSURE
+  </div>
+</header>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Conflict / Problem Actor</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div> Core Tool / Mechanism</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--cyan)"></div> Data Layer / Model</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Community Output / Evidence</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--muted)"></div> Dashed = Contradiction / Critique</div>
+</div>
+
+<div class="canvas-wrap">
+<svg id="network" width="1100" height="820" viewBox="0 0 1100 820">
+  <defs>
+    <!-- Arrow markers -->
+    <marker id="arrow-amber" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="rgba(245,166,35,0.7)"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="rgba(230,57,70,0.7)"/>
+    </marker>
+    <marker id="arrow-cyan" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="rgba(76,201,240,0.7)"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="rgba(87,204,153,0.7)"/>
+    </marker>
+    <marker id="arrow-muted" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="rgba(58,66,80,0.9)"/>
+    </marker>
+    <!-- Glow filters -->
+    <filter id="glow-amber" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-red">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-cyan">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-green">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- ===================== EDGES ===================== -->
+
+  <!-- Center to 3 main modules -->
+  <path class="edge" stroke="var(--amber)" d="M550,410 L300,200" marker-end="url(#arrow-amber)" stroke-dasharray="none"/>
+  <path class="edge" stroke="var(--amber)" d="M550,410 L550,175" marker-end="url(#arrow-amber)"/>
+  <path class="edge" stroke="var(--amber)" d="M550,410 L800,200" marker-end="url(#arrow-amber)"/>
+
+  <!-- Module 1: Disagreement Map edges -->
+  <path class="edge" stroke="var(--red)" d="M300,200 L170,340" marker-end="url(#arrow-red)"/>
+  <path class="edge" stroke="var(--cyan)" d="M300,200 L150,130" marker-end="url(#arrow-cyan)"/>
+  <path class="edge" stroke="var(--cyan)" d="M300,200 L290,85" marker-end="url(#arrow-cyan)"/>
+  <path class="edge" stroke="var(--green)" d="M300,200 L185,500" marker-end="url(#arrow-green)"/>
+
+  <!-- Conflict arrow between layer A and B (contradiction dashed) -->
+  <path class="edge" stroke="var(--red)" stroke-dasharray="5,4" d="M150,130 L290,85" marker-end="url(#arrow-red)"/>
+
+  <!-- Module 2: Exposure Cartogram edges -->
+  <path class="edge" stroke="var(--red)" d="M550,175 L440,75" marker-end="url(#arrow-red)"/>
+  <path class="edge" stroke="var(--green)" d="M550,175 L660,75" marker-end="url(#arrow-green)"/>
+  <path class="edge" stroke="var(--cyan)" d="M550,175 L550,65" marker-end="url(#arrow-cyan)" stroke-dasharray="4,3"/>
+
+  <!-- Module 3: Algorithmic Dashboard edges -->
+  <path class="edge" stroke="var(--cyan)" d="M800,200 L950,130" marker-end="url(#arrow-cyan)"/>
+  <path class="edge" stroke="var(--amber)" d="M800,200 L960,340" marker-end="url(#arrow-amber)"/>
+  <path class="edge" stroke="var(--green)" d="M800,200 L915,500" marker-end="url(#arrow-green)"/>
+
+  <!-- Bottom: Community empowerment layer connections -->
+  <path class="edge" stroke="var(--green)" d="M185,500 L320,620" marker-end="url(#arrow-green)"/>
+  <path class="edge" stroke="var(--green)" d="M915,500 L770,620" marker-end="url(#arrow-green)"/>
+  <path class="edge" stroke="var(--green)" d="M320,620 L550,680" marker-end="url(#arrow-green)"/>
+  <path class="edge" stroke="var(--green)" d="M770,620 L550,680" marker-end="url(#arrow-green)"/>
+
+  <!-- Cross links: LSTM feeds both cartogram and dashboard -->
+  <path class="edge" stroke="var(--cyan)" stroke-dasharray="6,3" d="M550,175 L800,200" marker-end="url(#arrow-cyan)"/>
+  <!-- Screenshot evidence cycle -->
+  <path class="edge" stroke="var(--green)" stroke-dasharray="3,3" d="M550,680 L170,340" marker-end="url(#arrow-green)"/>
+
+  <!-- Edge labels -->
+  <text class="edge-label" x="420" y="295">FEEDS MODEL</text>
+  <text class="edge-label" x="650" y="295">VALIDATES</text>
+  <text class="edge-label" x="360" y="655">ADVOCACY</text>
+  <text class="edge-label" x="740" y="655">ADVOCACY</text>
+  <text class="edge-label" x="240" y="595">SPILLOVER</text>
+  <text class="edge-label" x="880" y="580">GOAL CALC</text>
+  <text class="edge-label" x="622" y="130" style="fill:var(--cyan)">SHARED DATA</text>
+  <text class="edge-label" x="245" y="155" style="fill:var(--red)">CONTRADICTION</text>
+
+  <!-- ===================== NODES ===================== -->
+
+  <!-- CENTER NODE: Forensic Utility Tool -->
+  <g class="node" data-id="center">
+    <circle class="pulse-ring" cx="550" cy="410" r="0" fill="none" stroke="var(--amber)" stroke-width="1.5"/>
+    <polygon points="550,365 603,392 603,448 550,475 497,448 497,392" fill="rgba(245,166,35,0.08)" stroke="var(--amber)" stroke-width="2" filter="url(#glow-amber)"/>
+    <text class="node-label" x="550" y="405" style="fill:var(--amber);font-size:11px">FORENSIC</text>
+    <text class="node-label" x="550" y="420" style="fill:var(--amber);font-size:11px">UTILITY TOOL</text>
+    <text class="node-sublabel" x="550" y="437">resident empowerment</text>
+  </g>
+
+  <!-- ===== MODULE 1: MODEL DISAGREEMENT MAP ===== -->
+  <g class="node" data-id="map">
+    <rect x="230" y="160" width="140" height="80" rx="2" fill="rgba(230,57,70,0.08)" stroke="var(--red)" stroke-width="1.5" filter="url(#glow-red)"/>
+    <text class="node-label" x="300" y="193" style="fill:var(--red)">MODEL</text>
+    <text class="node-label" x="300" y="207" style="fill:var(--red)">DISAGREEMENT MAP</text>
+    <text class="node-sublabel" x="300" y="225">macro conflict</text>
+  </g>
+
+  <!-- Layer A: Official Bias -->
+  <g class="node" data-id="layerA">
+    <rect x="80" y="100" width="140" height="60" rx="2" fill="rgba(58,66,80,0.3)" stroke="var(--muted)" stroke-width="1.5"/>
+    <text class="node-label" x="150" y="122" style="fill:var(--muted);font-size:9px">LAYER A</text>
+    <text class="node-label" x="150" y="136" style="fill:var(--white);font-size:10px">OFFICIAL BIAS</text>
+    <text class="node-sublabel" x="150" y="152">Mapbox "Residential"</text>
+  </g>
+
+  <!-- Layer B: Feral Reality -->
+  <g class="node" data-id="layerB">
+    <rect x="218" y="48" width="144" height="60" rx="2" fill="rgba(230,57,70,0.12)" stroke="var(--red)" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <text class="node-label" x="290" y="68" style="fill:var(--muted);font-size:9px">LAYER B</text>
+    <text class="node-label" x="290" y="83" style="fill:var(--red);font-size:10px">FERAL REALITY</text>
+    <text class="node-sublabel" x="290" y="99">40% industrial use</text>
+  </g>
+
+  <!-- Spillover Zone -->
+  <g class="node" data-id="spillover">
+    <rect x="95" y="305" width="150" height="65" rx="2" fill="rgba(230,57,70,0.06)" stroke="var(--red)" stroke-width="1"/>
+    <text class="node-label" x="170" y="327" style="fill:var(--red);font-size:10px">REGULATORY</text>
+    <text class="node-label" x="170" y="342" style="fill:var(--red);font-size:10px">SPILLOVER ZONE</text>
+    <text class="node-sublabel" x="170" y="359">5.6 mph avg = industrial exhaust</text>
+  </g>
+
+  <!-- User Address Check -->
+  <g class="node" data-id="address">
+    <rect x="110" y="462" width="150" height="60" rx="2" fill="rgba(87,204,153,0.08)" stroke="var(--green)" stroke-width="1"/>
+    <text class="node-label" x="185" y="484" style="fill:var(--green);font-size:10px">ADDRESS LOOKUP</text>
+    <text class="node-sublabel" x="185" y="499">"Are you in a spillover</text>
+    <text class="node-sublabel" x="185" y="511">zone?" utility</text>
+  </g>
+
+  <!-- ===== MODULE 2: EXPOSURE CARTOGRAM ===== -->
+  <g class="node" data-id="cartogram">
+    <rect x="475" y="135" width="150" height="80" rx="2" fill="rgba(76,201,240,0.06)" stroke="var(--cyan)" stroke-width="1.5" filter="url(#glow-cyan)"/>
+    <text class="node-label" x="550" y="162" style="fill:var(--cyan)">EXPOSURE</text>
+    <text class="node-label" x="550" y="177" style="fill:var(--cyan)">CARTOGRAM</text>
+    <text class="node-sublabel" x="550" y="195">micro forensic proof</text>
+  </g>
+
+  <!-- Radius 75 State -->
+  <g class="node" data-id="r75">
+    <rect x="365" y="28" width="148" height="65" rx="2" fill="rgba(230,57,70,0.1)" stroke="var(--red)" stroke-width="1"/>
+    <text class="node-label" x="440" y="47" style="fill:var(--muted);font-size:9px">RADIUS 75 — CONGESTED</text>
+    <text class="node-label" x="440" y="63" style="fill:var(--red);font-size:10px">POLICY FAILURE</text>
+    <text class="node-sublabel" x="440" y="79">5.6 mph = spillover viz</text>
+  </g>
+
+  <!-- Radius 30 State -->
+  <g class="node" data-id="r30">
+    <rect x="593" y="28" width="148" height="65" rx="2" fill="rgba(87,204,153,0.08)" stroke="var(--green)" stroke-width="1"/>
+    <text class="node-label" x="667" y="47" style="fill:var(--muted);font-size:9px">RADIUS 30 — OPTIMIZED</text>
+    <text class="node-label" x="667" y="63" style="fill:var(--green);font-size:10px">FORENSIC PROOF</text>
+    <text class="node-sublabel" x="667" y="79">60 mph = 20% PM2.5 ↓</text>
+  </g>
+
+  <!-- Grasshopper Model -->
+  <g class="node" data-id="grasshopper">
+    <ellipse cx="550" cy="46" rx="62" ry="28" fill="rgba(76,201,240,0.06)" stroke="var(--cyan)" stroke-width="1" stroke-dasharray="4,3"/>
+    <text class="node-label" x="550" y="42" style="fill:var(--cyan);font-size:9px">GRASSHOPPER</text>
+    <text class="node-sublabel" x="550" y="56">volumetric fact-checker</text>
+  </g>
+
+  <!-- ===== MODULE 3: ALGORITHMIC DASHBOARD ===== -->
+  <g class="node" data-id="dashboard">
+    <rect x="730" y="160" width="140" height="80" rx="2" fill="rgba(245,166,35,0.08)" stroke="var(--amber)" stroke-width="1.5" filter="url(#glow-amber)"/>
+    <text class="node-label" x="800" y="192" style="fill:var(--amber)">ALGORITHMIC</text>
+    <text class="node-label" x="800" y="207" style="fill:var(--amber)">BLACKBOX AIDER</text>
+    <text class="node-sublabel" x="800" y="225">dashboard / explainer</text>
+  </g>
+
+  <!-- LSTM -->
+  <g class="node" data-id="lstm">
+    <rect x="880" y="95" width="130" height="60" rx="2" fill="rgba(76,201,240,0.08)" stroke="var(--cyan)" stroke-width="1.5"/>
+    <text class="node-label" x="945" y="118" style="fill:var(--cyan)">LSTM MODEL</text>
+    <text class="node-sublabel" x="945" y="134">time-series prediction</text>
+    <text class="node-sublabel" x="945" y="147">PM2.5 + traffic</text>
+  </g>
+
+  <!-- Monte Carlo -->
+  <g class="node" data-id="montecarlo">
+    <rect x="882" y="305" width="148" height="65" rx="2" fill="rgba(245,166,35,0.07)" stroke="var(--amber)" stroke-width="1"/>
+    <text class="node-label" x="956" y="327" style="fill:var(--amber);font-size:10px">MONTE CARLO</text>
+    <text class="node-label" x="956" y="342" style="fill:var(--amber);font-size:10px">95% CI</text>
+    <text class="node-sublabel" x="956" y="359">uncertainty quantified</text>
+  </g>
+
+  <!-- Emission Goal Selector -->
+  <g class="node" data-id="goal">
+    <rect x="750" y="460" width="180" height="65" rx="2" fill="rgba(87,204,153,0.07)" stroke="var(--green)" stroke-width="1"/>
+    <text class="node-label" x="840" y="482" style="fill:var(--green);font-size:10px">EMISSION GOAL</text>
+    <text class="node-label" x="840" y="497" style="fill:var(--green);font-size:10px">SELECTOR</text>
+    <text class="node-sublabel" x="840" y="514">WHO standards → policy calc</text>
+  </g>
+
+  <!-- ===== BOTTOM: EVIDENCE LAYER ===== -->
+
+  <!-- Screenshot Evidence -->
+  <g class="node" data-id="screenshot">
+    <rect x="240" y="585" width="160" height="65" rx="2" fill="rgba(87,204,153,0.08)" stroke="var(--green)" stroke-width="1.5"/>
+    <text class="node-label" x="320" y="607" style="fill:var(--green)">SCREENSHOT</text>
+    <text class="node-label" x="320" y="622" style="fill:var(--green)">EVIDENCE</text>
+    <text class="node-sublabel" x="320" y="638">cartogram as legal proof</text>
+  </g>
+
+  <!-- Policy Advocacy -->
+  <g class="node" data-id="advocacy">
+    <rect x="690" y="585" width="160" height="65" rx="2" fill="rgba(87,204,153,0.08)" stroke="var(--green)" stroke-width="1.5"/>
+    <text class="node-label" x="770" y="607" style="fill:var(--green)">POLICY</text>
+    <text class="node-label" x="770" y="622" style="fill:var(--green)">ADVOCACY</text>
+    <text class="node-sublabel" x="770" y="638">$44 freight tax + 60 mph</text>
+  </g>
+
+  <!-- RESIDENT EMPOWERMENT (bottom center) -->
+  <g class="node" data-id="resident">
+    <polygon points="550,645 620,678 620,742 550,775 480,742 480,678" fill="rgba(87,204,153,0.1)" stroke="var(--green)" stroke-width="2" filter="url(#glow-green)"/>
+    <text class="node-label" x="550" y="700" style="fill:var(--green);font-size:11px">RESIDENT</text>
+    <text class="node-label" x="550" y="716" style="fill:var(--green);font-size:11px">EMPOWERMENT</text>
+    <text class="node-sublabel" x="550" y="732">lived reality ↔ policy truth</text>
+  </g>
+
+  <!-- Feedback loop arrow -->
+  <text class="edge-label" x="310" y="700" style="fill:rgba(87,204,153,0.5);font-size:8px">FEEDBACK LOOP</text>
+
+</svg>
+</div>
+
+<!-- Stats bar -->
+<div class="info-panel">
+  <div class="info-col">
+    <h3>Core Problem</h3>
+    <div class="stat"><span>40%</span></div>
+    <p>industrial land use inside<br>"residential" zoning designation</p>
+  </div>
+  <div class="info-col">
+    <h3>Speed → Pollution Link</h3>
+    <div class="stat">5.6 <span>mph</span></div>
+    <p>current average: congested state<br>produces maximum PM2.5 spillover</p>
+  </div>
+  <div class="info-col">
+    <h3>Forensic Goal</h3>
+    <div class="stat"><span>20%</span> PM2.5 ↓</div>
+    <p>achievable at 60 mph flow<br>proven via Radius 30 cartogram</p>
+  </div>
+  <div class="info-col">
+    <h3>Policy Lever</h3>
+    <div class="stat"><span>$44</span></div>
+    <p>freight tax + 60 mph speed regulation<br>= WHO air quality standard compliance</p>
+  </div>
+  <div class="info-col">
+    <h3>Model Chain</h3>
+    <div class="stat" style="font-size:18px"><span>LSTM</span> → MC</div>
+    <p>LSTM time-series prediction +<br>Monte Carlo 95% CI = defensible evidence</p>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div id="tooltip">
+  <div class="tip-title" id="tip-title"></div>
+  <div class="tip-body" id="tip-body"></div>
+  <div class="tip-tag" id="tip-tag"></div>
+</div>
+
+<script>
+const nodeData = {
+  center: {
+    title: "FORENSIC UTILITY TOOL",
+    body: "The central shift: from critique of a model to an empowerment tool. Bridges the gap between abstract policy language and the lived reality of residents in regulatory spillover zones. Uses LSTM + Grasshopper + Monte Carlo as forensic instruments.",
+    tag: "CORE SYSTEM", color: "var(--amber)"
+  },
+  map: {
+    title: "MODEL DISAGREEMENT MAP",
+    body: "Macro-level conflict visualization. Layers official Mapbox 'Residential' zoning against the 40% industrial use footprint. Difference filter (or blink) highlights where residents live inside what is effectively an industrial exhaust pipe.",
+    tag: "MODULE 1 — MACRO", color: "var(--red)"
+  },
+  layerA: {
+    title: "LAYER A — OFFICIAL BIAS",
+    body: "Mapbox 'Residential' zoning data. The official regulatory designation. This is the government's map — and it contradicts physical reality on the ground.",
+    tag: "ZONING DATA", color: "var(--muted)"
+  },
+  layerB: {
+    title: "LAYER B — FERAL REALITY",
+    body: "The 40% industrial use footprint: warehouses, truck depots, and the expressway. This is what the land actually does. The dashed contradiction edge between A and B is the 'disagreement' the tool exposes.",
+    tag: "INDUSTRIAL FOOTPRINT", color: "var(--red)"
+  },
+  spillover: {
+    title: "REGULATORY SPILLOVER ZONE",
+    body: "Areas where people live inside effective industrial zones. 5.6 mph highway average = maximum emission dispersion into residential blocks. The tool lets users click their address to see if they live here.",
+    tag: "COMMUNITY UTILITY", color: "var(--red)"
+  },
+  address: {
+    title: "ADDRESS LOOKUP",
+    body: "User-facing utility: 'Do you live in a Spillover Zone?' Residents enter their address; the site cross-references zoning layers and returns a forensic verdict on their exposure risk.",
+    tag: "RESIDENT TOOL", color: "var(--green)"
+  },
+  cartogram: {
+    title: "EXPOSURE CARTOGRAM",
+    body: "Micro-level volumetric proof. Uses the Grasshopper model to physically simulate emission plumes at Radius 75 (congested, 5.6 mph) vs Radius 30 (optimized, 60 mph). Shows smoke is too high and thick for trees to filter — proving speed regulation is the only forensic solution.",
+    tag: "MODULE 2 — MICRO", color: "var(--cyan)"
+  },
+  r75: {
+    title: "RADIUS 75 — CONGESTED STATE",
+    body: "Label: 'Policy Choice: 5.6 mph = Regulatory Spillover.' The current congested highway state. Physically visualizes how the exhaust plume spills into homes. This is the status quo the tool is prosecuting.",
+    tag: "FAILURE STATE", color: "var(--red)"
+  },
+  r30: {
+    title: "RADIUS 30 — OPTIMIZED STATE",
+    body: "Label: 'Forensic Proof: 60 mph = 20% PM2.5 reduction.' The achievable optimized state. Provides visual evidence that the solution exists and is measurable, not hypothetical.",
+    tag: "PROOF STATE", color: "var(--green)"
+  },
+  grasshopper: {
+    title: "GRASSHOPPER MODEL",
+    body: "Parametric computational model acting as a volumetric fact-checker for emission goals. Generates the 3D emission radius geometry used in the Exposure Cartogram. Translates speed/volume data into spatial proof.",
+    tag: "PARAMETRIC ENGINE", color: "var(--cyan)"
+  },
+  dashboard: {
+    title: "ALGORITHMIC BLACKBOX AIDER",
+    body: "The dashboard that opens the LSTM and Monte Carlo blackbox to community users. Instead of just showing a result, it shows the 95% Confidence Interval. Lets users select emission goals and returns the exact policy combination needed.",
+    tag: "MODULE 3 — DASHBOARD", color: "var(--amber)"
+  },
+  lstm: {
+    title: "LSTM MODEL",
+    body: "Long Short-Term Memory neural network predicting PM2.5 and traffic time-series. The core predictive engine. Its outputs feed both the cartogram simulation and the Monte Carlo confidence interval analysis.",
+    tag: "PREDICTIVE MODEL", color: "var(--cyan)"
+  },
+  montecarlo: {
+    title: "MONTE CARLO — 95% CI",
+    body: "Quantifies uncertainty in the LSTM predictions. The 95% Confidence Interval is shown to residents — not hidden. This makes the tool forensically defensible. The range itself becomes evidence.",
+    tag: "UNCERTAINTY QUANTIFICATION", color: "var(--amber)"
+  },
+  goal: {
+    title: "EMISSION GOAL SELECTOR",
+    body: "Interactive utility: user selects an emission target (e.g. WHO Air Quality Standards). The website calculates: 'To reach this goal, we need a $44 Freight Tax AND 60 mph flow.' Translates technical models into actionable policy demands.",
+    tag: "POLICY CALCULATOR", color: "var(--green)"
+  },
+  screenshot: {
+    title: "SCREENSHOT EVIDENCE",
+    body: "The Exposure Cartogram functions as physical proof that current regulation is failing. Residents can screenshot the state comparison and use it in community advocacy, legal challenges, or public comment submissions.",
+    tag: "FORENSIC ARTIFACT", color: "var(--green)"
+  },
+  advocacy: {
+    title: "POLICY ADVOCACY",
+    body: "The downstream output: community members equipped with forensic evidence to demand $44 freight tax + 60 mph speed regulation. The tool turns technical truth into civic power.",
+    tag: "COMMUNITY ACTION", color: "var(--green)"
+  },
+  resident: {
+    title: "RESIDENT EMPOWERMENT",
+    body: "The ultimate output node. Residents move from passive victims of regulatory spillover to active forensic advocates. The tool bridges abstract policy language and lived reality through computational proof.",
+    tag: "SYSTEM OUTPUT", color: "var(--green)"
+  }
+};
+
+const tooltip = document.getElementById('tooltip');
+const tipTitle = document.getElementById('tip-title');
+const tipBody = document.getElementById('tip-body');
+const tipTag = document.getElementById('tip-tag');
+
+document.querySelectorAll('.node').forEach(node => {
+  const id = node.dataset.id;
+  const data = nodeData[id];
+  if (!data) return;
+
+  node.addEventListener('mouseenter', (e) => {
+    tipTitle.textContent = data.title;
+    tipBody.textContent = data.body;
+    tipTag.textContent = data.tag;
+    tipTag.style.color = data.color;
+    tipTag.style.borderColor = data.color;
+    tooltip.style.display = 'block';
+  });
+
+  node.addEventListener('mousemove', (e) => {
+    const x = e.clientX + 16;
+    const y = e.clientY + 16;
+    const tw = 280;
+    tooltip.style.left = (x + tw > window.innerWidth ? x - tw - 32 : x) + 'px';
+    tooltip.style.top = y + 'px';
+  });
+
+  node.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+  });
+});
+</script>
+</body>
+</html>

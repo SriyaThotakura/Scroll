@@ -1,5 +1,5 @@
 // Replace with your Mapbox access token
-mapboxgl.accessToken = 'pk.eyJ1Ijoic3JpeWF0aG90YWt1cmEiLCJhIjoiY21kYzhuMG1hMTVrbjJpcHpnZ3Awdjc1dCJ9.bEGwdPmOH5kVaT9RWduC5Q';
+mapboxgl.accessToken = 'YOUR_MAPBOX_TOKEN';
 
 // Global variables
 let scroller;

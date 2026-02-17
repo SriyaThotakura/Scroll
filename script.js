@@ -1,5 +1,5 @@
-// Replace with your Mapbox access token
-mapboxgl.accessToken = 'pk.eyJ1Ijoic3JpeWF0aG90YWt1cmEiLCJhIjoiY21kYzhuMG1hMTVrbjJpcHpnZ3Awdjc1dCJ9.bEGwdPmOH5kVaT9RWduC5Q';
+// Mapbox token loaded from config.js (gitignored)
+mapboxgl.accessToken = CONFIG.MAPBOX_TOKEN;
 
 // Global variables
 let scroller;
@@ -8,6 +8,7 @@ let animationStart;
 let hviDataLoaded = false;
 let parkAccessDataLoaded = false;
 let asthmaDataLoaded = false;
+let vizModule = null; // Mapbox viz module (HVI choropleth + CBX flow)
 
 // Initialize the map
 const map = new mapboxgl.Map({
@@ -32,7 +33,11 @@ const layers = {
     priorityZone: 'priority-zone',
     schools: 'schools',
     hospitals: 'hospitals',
-    hviLayer: 'hvi-layer'
+    hviLayer: 'hvi-layer',
+    hviZoneChoropleth: 'hvi-zone-choropleth',
+    hviZoneOutline: 'hvi-zone-outline',
+    cbxFlowLine: 'cbx-flow-line',
+    cbxFlowGlow: 'cbx-flow-glow'
 };
 
 // Track hero section visibility
@@ -777,6 +782,13 @@ map.on('load', async () => {
     // Load Asthma hexbin data
     loadAsthmaHexbinLayer();
 
+    // Initialize HVI choropleth + CBX flow visualization module
+    if (typeof initVizModule === 'function') {
+        vizModule = await initVizModule(map, 'gh_input.csv');
+        vizModule.showLayers();
+        vizModule.updateFromTax(0); // baseline state
+    }
+
     // Initialize Scrollama after map and layers are loaded
     scroller = scrollama();
     
@@ -1464,6 +1476,11 @@ function setupSliderInteraction() {
         // Calculate and update health outcome (simplified)
         const healthImprovement = Math.round(value * 12500); // $12.5k per $1/ton (example)
         healthOutcome.textContent = (healthImprovement / 1000000).toFixed(1);
+
+        // Update HVI choropleth + CBX flow from gh_input.csv
+        if (vizModule) {
+            vizModule.updateFromTax(value);
+        }
     });
 }
 

@@ -1,0 +1,359 @@
+/**
+ * AppRouter Styles - Narrative Flow Design
+ */
+
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #0a0a0a;
+}
+
+.app-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  height: 70px;
+  background: linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%);
+  border-bottom: 1px solid #00FFFF20;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+}
+
+/* Brand Section */
+.nav-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand-link {
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-icon {
+  font-size: 1rem;
+  position: absolute;
+  margin-left: -24px;
+}
+
+.brand-text {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: #00FFFF;
+  letter-spacing: 0.05em;
+}
+
+.brand-subtitle {
+  font-size: 0.65rem;
+  color: #666;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+/* Narrative Progress Bar */
+.narrative-progress {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0 40px;
+}
+
+.progress-steps {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+}
+
+.progress-step {
+  position: relative;
+}
+
+.step-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.step-link:hover {
+  transform: translateY(-2px);
+}
+
+.step-number {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #222;
+  border: 2px solid #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #666;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.progress-step.active .step-number {
+  background: #00FFFF;
+  border-color: #00FFFF;
+  color: #000;
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+}
+
+.progress-step.completed .step-number {
+  background: #00FFFF20;
+  border-color: #00FFFF;
+  color: #00FFFF;
+}
+
+.step-label {
+  font-size: 0.75rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: color 0.3s;
+}
+
+.progress-step.active .step-label {
+  color: #00FFFF;
+}
+
+.progress-step.completed .step-label {
+  color: #00FFFF80;
+}
+
+/* Progress Connector */
+.progress-connector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.connector-line {
+  width: 80px;
+  height: 2px;
+  background: #333;
+  transition: background 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.connector-line.completed {
+  background: #00FFFF;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+}
+
+.connector-arrow {
+  font-family: 'JetBrains Mono', monospace;
+  color: #333;
+  font-size: 1.2rem;
+  transition: color 0.5s;
+}
+
+.connector-line.completed + .connector-arrow {
+  color: #00FFFF;
+}
+
+/* Nav Info Section */
+.nav-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.live-stats {
+  display: flex;
+  gap: 16px;
+  padding-right: 16px;
+  border-right: 1px solid #333;
+}
+
+.stat-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+}
+
+.stat-label {
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-value {
+  color: #00FFFF;
+  font-weight: 700;
+}
+
+.location-badge {
+  padding: 6px 14px;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: #666;
+  font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* Game Mode Button */
+.game-mode-link {
+  text-decoration: none;
+}
+
+.game-mode-btn {
+  background: transparent;
+  border: 2px solid #00ff00;
+  color: #00ff00;
+  padding: 8px 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.game-mode-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 255, 0, 0.1);
+  transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.game-mode-btn:hover {
+  border-color: #00ff00;
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+  transform: scale(1.05);
+}
+
+.game-mode-btn:hover::before {
+  left: 0;
+}
+
+.page-container.forensic-game-page {
+  background: #000;
+}
+
+/* Main Content Area */
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-container.policy-page {
+  background: #0a0a0a;
+}
+
+.page-container.forensic-analysis-page {
+  background: #000;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .progress-connector {
+    gap: 4px;
+  }
+
+  .connector-line {
+    width: 40px;
+  }
+
+  .narrative-progress {
+    padding: 0 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-navigation {
+    padding: 0 16px;
+    height: 60px;
+  }
+
+  .brand-icon {
+    display: none;
+  }
+
+  .brand-text {
+    font-size: 1rem;
+  }
+
+  .brand-subtitle {
+    display: none;
+  }
+
+  .live-stats {
+    display: none;
+  }
+
+  .progress-steps {
+    gap: 20px;
+  }
+
+  .step-number {
+    width: 32px;
+    height: 32px;
+    font-size: 0.875rem;
+  }
+
+  .step-label {
+    font-size: 0.65rem;
+  }
+
+  .connector-line {
+    width: 30px;
+  }
+
+  .connector-arrow {
+    font-size: 1rem;
+  }
+
+  .narrative-progress {
+    padding: 0 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .step-label {
+    display: none;
+  }
+
+  .progress-steps {
+    gap: 16px;
+  }
+
+  .connector-line {
+    width: 20px;
+  }
+}

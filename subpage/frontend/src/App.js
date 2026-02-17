@@ -1,8 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, GeoJSON, Popup, CircleMarker } from 'react-leaflet';
+import React, { useState, useEffect, useMemo } from 'react';
+import { MapContainer, TileLayer, GeoJSON, Popup, CircleMarker, Polyline } from 'react-leaflet';
+import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
+
+// Import shared state context
+import { useAppState } from './AppRouter';
 
 // Import new ML visualization components
 import TrafficPredictionChart from './components/TrafficPredictionChart';
@@ -14,11 +18,11 @@ import ZoneDetailPanel from './components/ZoneDetailPanel';
 // ==================== INTERNATIONALIZATION ====================
 const translations = {
   en: {
-    title: "Urban Futures LEAP",
-    subtitle: "Freight Tax Impact on Air Quality & Public Health",
+    title: "BREATHING ROUTES: CROSS BRONX EXPOSURE MONITOR",
+    subtitle: "> LIVE FEED: NODE 402 (INVERSION LAYER DETECTED)",
     location: "Soundview, The Bronx (UHF District 402)",
     sidebar: {
-      title: "Policy Simulator",
+      title: "> LIVE FEED: NODE 402 (INVERSION LAYER DETECTED)",
       taxLabel: "Freight Tax Amount",
       taxHint: "Drag to adjust tax per truck crossing ($0 - $100)",
       assumptions: "Model Assumptions",
@@ -63,11 +67,11 @@ const translations = {
     footer: "A climate justice tool for Soundview. Supporting equitable transition strategies."
   },
   es: {
-    title: "Futuros Urbanos LEAP",
-    subtitle: "Impacto de Impuesto a Fletes en Calidad del Aire y Salud Pública",
+    title: "BREATHING ROUTES: CROSS BRONX EXPOSURE MONITOR",
+    subtitle: "> LIVE FEED: NODE 402 (INVERSION LAYER DETECTED)",
     location: "Soundview, El Bronx (Distrito UHF 402)",
     sidebar: {
-      title: "Simulador de Política",
+      title: "> LIVE FEED: NODE 402 (INVERSION LAYER DETECTED)",
       taxLabel: "Impuesto a Fletes",
       taxHint: "Arrastra para ajustar el impuesto por camión ($0 - $100)",
       assumptions: "Supuestos del Modelo",
@@ -118,11 +122,70 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://scroll-y8wn.onren
 const SOUNDVIEW_CENTER = [40.824, -73.875];
 const MAX_TAX = 100;
 
+// PM2.5 hotspot locations along/near CBX corridor (lat/lng)
+const PM25_HOTSPOTS = [
+  { lat: 40.8150, lng: -73.9250, name: 'CBX West Entry', baseLevel: 14.8 },
+  { lat: 40.8175, lng: -73.9100, name: 'Crotona Park', baseLevel: 13.9 },
+  { lat: 40.8200, lng: -73.8950, name: 'West Farms', baseLevel: 14.2 },
+  { lat: 40.8215, lng: -73.8800, name: 'Bronx River', baseLevel: 13.5 },
+  { lat: 40.8230, lng: -73.8650, name: 'Soundview', baseLevel: 14.5 },
+  { lat: 40.8250, lng: -73.8500, name: 'Castle Hill', baseLevel: 13.8 },
+  { lat: 40.8260, lng: -73.8350, name: 'Parkchester', baseLevel: 13.2 },
+  { lat: 40.8100, lng: -73.8750, name: 'Bruckner South', baseLevel: 14.0 },
+  { lat: 40.8300, lng: -73.8700, name: 'Unionport', baseLevel: 13.1 },
+  { lat: 40.8180, lng: -73.8550, name: 'Soundview Park Edge', baseLevel: 12.8 },
+];
+
+// Cross-Bronx Expressway polyline (lat/lng for Leaflet)
+const CBX_LATLNGS = [
+  [40.8133, -73.9288],
+  [40.8180, -73.9100],
+  [40.8200, -73.8900],
+  [40.8220, -73.8700],
+  [40.8240, -73.8500],
+  [40.8260, -73.8300],
+  [40.8280, -73.8100]
+];
+
+// HVI risk score → color ramp (matches mapVizModule.js)
+function riskToColor(score) {
+  const stops = [
+    { t: 0.00, r: 100, g: 140, b: 200 },
+    { t: 0.20, r: 130, g: 100, b: 210 },
+    { t: 0.40, r: 160, g: 60, b: 200 },
+    { t: 0.55, r: 190, g: 40, b: 160 },
+    { t: 0.70, r: 210, g: 30, b: 100 },
+    { t: 0.85, r: 220, g: 20, b: 50 },
+    { t: 1.00, r: 200, g: 10, b: 10 }
+  ];
+  const v = Math.min(1, Math.max(0, score));
+  let lo = stops[0], hi = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (v >= stops[i].t && v <= stops[i + 1].t) { lo = stops[i]; hi = stops[i + 1]; break; }
+  }
+  const range = hi.t - lo.t;
+  const ratio = range === 0 ? 0 : (v - lo.t) / range;
+  const r = Math.round(lo.r + (hi.r - lo.r) * ratio);
+  const g = Math.round(lo.g + (hi.g - lo.g) * ratio);
+  const b = Math.round(lo.b + (hi.b - lo.b) * ratio);
+  return `rgb(${r},${g},${b})`;
+}
+
+// Linear color lerp for CBX line
+function lerpHex(hex1, hex2, t) {
+  const p = (h) => { const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h); return [parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]; };
+  const a = p(hex1), b = p(hex2);
+  const r = Math.round(a[0]+(b[0]-a[0])*t), g = Math.round(a[1]+(b[1]-a[1])*t), bl = Math.round(a[2]+(b[2]-a[2])*t);
+  return `rgb(${r},${g},${bl})`;
+}
+
 // ==================== MAIN APP COMPONENT ====================
 function App() {
-  // State Management
-  const [taxAmount, setTaxAmount] = useState(44);
-  const [simulationData, setSimulationData] = useState(null);
+  // Get shared state from context
+  const { taxAmount, setTaxAmount, speed, setSpeed, simulationData, setSimulationData } = useAppState();
+  const navigate = useNavigate();
+
+  // Local State Management
   const [baselineData, setBaselineData] = useState(null);
   const [geojsonData, setGeojsonData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -209,6 +272,13 @@ function App() {
         const data = await response.json();
         console.log('API Response:', data);
         setSimulationData(data);
+
+        // Calculate speed based on tax (inverse relationship)
+        // Higher tax → Lower congestion → Higher speed
+        const calculatedSpeed = tax < 50
+          ? 5 + (tax * 0.5)  // Low tax: 5-30 MPH
+          : 30 + ((tax - 50) * 0.6);  // High tax: 30-60 MPH
+        setSpeed(Math.round(calculatedSpeed));
       } else {
         console.error('Response not ok:', response.status);
       }
@@ -440,21 +510,37 @@ function App() {
     ? 0.7 + (simulationData.pm25_reduction_ug_m3 / 5) * 0.3
     : 0.8;
 
+  // Compute risk score from simulation data (baseline ~0.69 at $0 tax)
+  const riskScore = simulationData
+    ? Math.max(0, 0.69 - (taxAmount / MAX_TAX) * 0.35)
+    : 0.69;
+
+  // PM2.5 level for zone opacity
+  const pm25Level = simulationData
+    ? 13.2 - (simulationData.pm25_reduction_ug_m3 || 0)
+    : 13.2;
+  const pm25Opacity = 0.3 + Math.min(1, Math.max(0, (pm25Level - 10) / 5)) * 0.55;
+
+  // CBX flow line: color shifts red→green, width shrinks as trucks divert
+  const cbxDiversionRatio = simulationData
+    ? Math.min(1, (simulationData.trucks_diverted || 0) / 416)
+    : 0;
+  const cbxColor = lerpHex('#991b1b', '#16a34a', cbxDiversionRatio);
+  const cbxWeight = 6 - cbxDiversionRatio * 4;
+
+  // GeoJSON key to force re-render when style changes
+  const geoJsonKey = useMemo(() => `geo-${taxAmount}-${riskScore.toFixed(3)}`, [taxAmount, riskScore]);
+
   // Handle GeoJSON layer styling
   const onEachFeature = (feature, layer) => {
     const props = feature.properties;
     const popupContent = `
-      <div style="font-family: Arial, sans-serif; width: 200px;">
-        <h3 style="margin: 0 0 8px 0; color: #1f2937;">${props.area_name}</h3>
-        <p style="margin: 4px 0;"><strong>${t.map.zipCode}:</strong> ${props.zip_code}</p>
-        <p style="margin: 4px 0;"><strong>${t.map.hvi}:</strong> ${props.hvi} / 5</p>
-        <p style="margin: 4px 0;"><strong>${t.map.baselinePM25}:</strong> ${props.baseline_pm25} µg/m³</p>
-        <p style="margin: 8px 0 0 0; font-size: 12px; color: #666;">
-          ${language === 'en'
-        ? '⚠️ Heat Vulnerability Index 5 = Highest Risk'
-        : '⚠️ Índice 5 = Mayor Riesgo'}
-        </p>
-        <p style="margin: 8px 0 0 0; font-size: 11px; color: #3b82f6;">
+      <div style="font-family: 'Inter', sans-serif; width: 220px; padding: 12px 14px;">
+        <h3 style="margin: 0 0 8px 0; color: #f0f0f5; font-size: 14px; font-weight: 700;">${props.area_name}</h3>
+        <p style="margin: 4px 0; font-size: 12px; color: #8890a4;"><strong style="color: #bbb;">${t.map.zipCode}:</strong> ${props.zip_code}</p>
+        <p style="margin: 4px 0; font-size: 12px; color: #8890a4;"><strong style="color: #bbb;">${t.map.hvi}:</strong> <span style="color: ${props.hvi >= 4 ? '#ef4444' : props.hvi >= 3 ? '#f59e0b' : '#10b981'}; font-weight: 700;">${props.hvi}</span> / 5</p>
+        <p style="margin: 4px 0; font-size: 12px; color: #8890a4;"><strong style="color: #bbb;">${t.map.baselinePM25}:</strong> ${props.baseline_pm25} µg/m³</p>
+        <p style="margin: 10px 0 0 0; font-size: 10px; color: #555b6e; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px;">
           ${language === 'en'
         ? '👆 Click for detailed analysis'
         : '👆 Haga clic para análisis detallado'}
@@ -505,13 +591,14 @@ function App() {
 
       {/* Tab Navigation */}
       <div style={{
-        backgroundColor: 'white',
-        borderBottom: '1px solid #e5e7eb',
-        padding: '0 32px'
+        backgroundColor: 'rgba(10, 10, 18, 0.9)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        padding: '0 32px',
+        backdropFilter: 'blur(12px)'
       }}>
         <div style={{
           display: 'flex',
-          gap: '8px',
+          gap: '4px',
           maxWidth: '1400px',
           margin: '0 auto'
         }}>
@@ -526,15 +613,16 @@ function App() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
-                padding: '12px 20px',
+                padding: '10px 18px',
                 border: 'none',
-                borderBottom: activeTab === tab.id ? '2px solid #3b82f6' : '2px solid transparent',
-                backgroundColor: 'transparent',
-                color: activeTab === tab.id ? '#3b82f6' : '#6b7280',
-                fontSize: '14px',
+                borderBottom: activeTab === tab.id ? '2px solid #ef4444' : '2px solid transparent',
+                backgroundColor: activeTab === tab.id ? 'rgba(239, 68, 68, 0.08)' : 'transparent',
+                color: activeTab === tab.id ? '#f0f0f5' : '#555b6e',
+                fontSize: '13px',
                 fontWeight: activeTab === tab.id ? '600' : '500',
                 cursor: 'pointer',
-                transition: 'all 0.2s'
+                transition: 'all 0.2s',
+                letterSpacing: '0.5px'
               }}
             >
               {tab.label}
@@ -628,6 +716,49 @@ function App() {
                   📋 {t.sidebar.assumptions}
                 </button>
 
+                {/* View Forensic Evidence Button */}
+                {simulationData && (
+                  <button
+                    onClick={() => navigate('/analysis')}
+                    style={{
+                      marginTop: '16px',
+                      padding: '16px 24px',
+                      backgroundColor: '#00FFFF',
+                      color: '#000',
+                      border: '2px solid #00FFFF',
+                      borderRadius: '4px',
+                      fontSize: '16px',
+                      fontWeight: '700',
+                      fontFamily: 'JetBrains Mono, monospace',
+                      cursor: 'pointer',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                      boxShadow: '0 0 20px rgba(0, 255, 255, 0.3)',
+                      width: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = '#000';
+                      e.target.style.color = '#00FFFF';
+                      e.target.style.boxShadow = '0 0 30px rgba(0, 255, 255, 0.5)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = '#00FFFF';
+                      e.target.style.color = '#000';
+                      e.target.style.boxShadow = '0 0 20px rgba(0, 255, 255, 0.3)';
+                    }}
+                  >
+                    <span>🎬 VIEW FORENSIC EVIDENCE</span>
+                    <span style={{ fontSize: '11px', opacity: 0.75, fontWeight: '500' }}>
+                      Tax: ${taxAmount} | Speed: {speed} MPH
+                    </span>
+                  </button>
+                )}
+
                 {/* Assumptions Modal */}
                 {showAssumptions && (
                   <div className="assumptions-modal">
@@ -696,39 +827,150 @@ function App() {
                 className="leaflet-map"
               >
                 <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; OpenStreetMap contributors'
+                  url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                  attribution='&copy; <a href="https://carto.com/">CARTO</a>'
                 />
 
-                {/* GeoJSON Layers */}
+                {/* GeoJSON Layers — per-zone HVI risk coloring */}
                 {geojsonData && (
                   <GeoJSON
+                    key={geoJsonKey}
                     data={geojsonData}
                     onEachFeature={onEachFeature}
-                    style={() => ({
-                      color: '#ef4444',
-                      weight: 2,
-                      opacity: 0.7,
-                      fillOpacity: 0.3,
-                      fillColor: '#fca5a5'
-                    })}
+                    style={(feature) => {
+                      // Per-zone color: normalize HVI (1-5) to 0-1, then blend with tax reduction
+                      const hvi = feature.properties.hvi || 3;
+                      const zoneRisk = Math.min(1, (hvi / 5) * (1 - (taxAmount / MAX_TAX) * 0.4));
+                      return {
+                        color: 'rgba(255,255,255,0.25)',
+                        weight: 1.5,
+                        opacity: 0.8,
+                        fillOpacity: 0.35 + zoneRisk * 0.45,
+                        fillColor: riskToColor(zoneRisk)
+                      };
+                    }}
                   />
                 )}
+
+                {/* Cross-Bronx Expressway Flow Line */}
+                <Polyline
+                  positions={CBX_LATLNGS}
+                  pathOptions={{
+                    color: cbxColor,
+                    weight: cbxWeight,
+                    opacity: 0.9,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                  }}
+                />
+                {/* CBX Glow (wider, semi-transparent) */}
+                <Polyline
+                  positions={CBX_LATLNGS}
+                  pathOptions={{
+                    color: cbxColor,
+                    weight: cbxWeight * 2,
+                    opacity: Math.max(0.05, 0.4 - cbxDiversionRatio * 0.35),
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                  }}
+                />
+
+                {/* PM2.5 Concentration — amplified visual aligned to API prediction direction */}
+                {PM25_HOTSPOTS.map((spot, i) => {
+                  // API gives tiny pm25_reduction_ug_m3 (~0.036), so we amplify the VISUAL
+                  // while keeping the popup values tied to the real prediction.
+                  const apiReduction = simulationData ? (simulationData.pm25_reduction_ug_m3 || 0) : 0;
+                  const currentPM25 = spot.baseLevel - apiReduction; // real predicted value
+
+                  // Amplified visual: tax drives a dramatic 0→50% visual reduction
+                  // Direction matches API (higher tax = more reduction), magnitude is amplified
+                  const visualReduction = (taxAmount / MAX_TAX) * 0.5; // 0% at $0, 50% at $100
+                  const visualPM25 = spot.baseLevel * (1 - visualReduction);
+
+                  // intensity: 0 = clean (≤7), 1 = polluted (≥15)
+                  const intensity = Math.max(0, Math.min(1, (visualPM25 - 7) / 8));
+
+                  // Color ramp: bright green → yellow → orange → red
+                  let r, g, b;
+                  if (intensity < 0.33) {
+                    const t = intensity / 0.33;
+                    r = Math.round(30 + t * 220); g = Math.round(220 - t * 20); b = 30;
+                  } else if (intensity < 0.66) {
+                    const t = (intensity - 0.33) / 0.33;
+                    r = Math.round(250); g = Math.round(200 - t * 150); b = 30;
+                  } else {
+                    const t = (intensity - 0.66) / 0.34;
+                    r = Math.round(250 - t * 30); g = Math.round(50 - t * 40); b = Math.round(30 + t * 10);
+                  }
+                  const dotColor = `rgb(${r}, ${g}, ${b})`;
+
+                  return (
+                    <React.Fragment key={`pm25-group-${i}-${taxAmount}`}>
+                      {/* Outer glow — grows/shrinks dramatically */}
+                      <CircleMarker
+                        center={[spot.lat, spot.lng]}
+                        radius={12 + intensity * 45}
+                        fillColor={dotColor}
+                        color="transparent"
+                        weight={0}
+                        fillOpacity={0.06 + intensity * 0.20}
+                      />
+                      {/* Mid ring */}
+                      <CircleMarker
+                        center={[spot.lat, spot.lng]}
+                        radius={8 + intensity * 25}
+                        fillColor={dotColor}
+                        color={dotColor}
+                        weight={1.5}
+                        fillOpacity={0.12 + intensity * 0.30}
+                      />
+                      {/* Core dot */}
+                      <CircleMarker
+                        center={[spot.lat, spot.lng]}
+                        radius={5 + intensity * 8}
+                        fillColor={dotColor}
+                        color="#ffffff"
+                        weight={1.5}
+                        fillOpacity={0.9}
+                      >
+                        <Popup>
+                          <div style={{ fontFamily: 'Inter, sans-serif', padding: '10px 12px' }}>
+                            <h4 style={{ margin: '0 0 6px', color: '#f0f0f5', fontSize: '13px' }}>{spot.name}</h4>
+                            <p style={{ margin: '2px 0', fontSize: '11px', color: '#8890a4' }}>
+                              <strong style={{ color: '#bbb' }}>PM2.5:</strong>{' '}
+                              <span style={{ color: dotColor, fontWeight: 700 }}>
+                                {currentPM25.toFixed(1)} µg/m³
+                              </span>
+                            </p>
+                            <p style={{ margin: '2px 0', fontSize: '11px', color: '#8890a4' }}>
+                              <strong style={{ color: '#bbb' }}>Baseline:</strong> {spot.baseLevel} µg/m³
+                            </p>
+                            {taxAmount > 0 && (
+                              <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'rgb(40, 200, 40)' }}>
+                                ↓ {apiReduction.toFixed(3)} µg/m³ model reduction
+                              </p>
+                            )}
+                          </div>
+                        </Popup>
+                      </CircleMarker>
+                    </React.Fragment>
+                  );
+                })}
 
                 {/* Soundview Center Marker */}
                 <CircleMarker
                   center={SOUNDVIEW_CENTER}
-                  radius={8}
+                  radius={6}
                   fillColor="#3b82f6"
-                  color="#1e40af"
+                  color="#60a5fa"
                   weight={2}
-                  opacity={1}
-                  fillOpacity={0.8}
+                  opacity={0.8}
+                  fillOpacity={0.9}
                 >
                   <Popup>
-                    <div style={{ fontFamily: 'Arial, sans-serif' }}>
-                      <h4>Soundview</h4>
-                      <p>{language === 'en' ? 'Cross-Bronx Expressway' : 'Autopista Cross-Bronx'}</p>
+                    <div style={{ fontFamily: 'Inter, sans-serif', padding: '10px 12px' }}>
+                      <h4 style={{ margin: '0 0 4px', color: '#f0f0f5', fontSize: '13px' }}>Soundview</h4>
+                      <p style={{ margin: 0, fontSize: '11px', color: '#8890a4' }}>{language === 'en' ? 'Cross-Bronx Expressway' : 'Autopista Cross-Bronx'}</p>
                     </div>
                   </Popup>
                 </CircleMarker>
@@ -737,26 +979,35 @@ function App() {
               {/* Map Legend */}
               <div className="map-legend">
                 <div className="legend-item">
-                  <div className="legend-color" style={{ backgroundColor: '#fca5a5' }}></div>
-                  <span>{language === 'en' ? 'Soundview ZIP Codes' : 'Códigos Postales'}</span>
+                  <div className="legend-color" style={{ backgroundColor: riskToColor(riskScore) }}></div>
+                  <span>{language === 'en' ? 'HVI Risk Zone' : 'Zona de Riesgo HVI'}</span>
                 </div>
                 <div className="legend-item">
-                  <div className="legend-color" style={{ backgroundColor: '#3b82f6' }}></div>
-                  <span>{language === 'en' ? 'Cross-Bronx Expressway' : 'Autopista'}</span>
+                  <div className="legend-color" style={{ backgroundColor: cbxColor, width: '20px', height: '4px', borderRadius: '2px' }}></div>
+                  <span>{language === 'en' ? 'CBX Truck Flow' : 'Flujo de Camiones'}</span>
                 </div>
                 <div className="legend-item">
-                  <img 
-                    src="/images/urban-severance.jpg" 
-                    alt="Urban Severance" 
-                    style={{ 
-                      width: '20px', 
-                      height: '20px', 
-                      objectFit: 'cover',
-                      borderRadius: '4px',
-                      marginRight: '8px'
-                    }} 
-                  />
-                  <span>Environmental Impact: Urban Severance</span>
+                  <div className="legend-color" style={{ backgroundColor: 'rgb(30, 220, 30)', borderRadius: '50%', border: '1.5px solid #fff', width: '12px', height: '12px' }}></div>
+                  <span>PM2.5 Low (&le;7 µg/m³)</span>
+                </div>
+                <div className="legend-item">
+                  <div className="legend-color" style={{ backgroundColor: 'rgb(250, 200, 30)', borderRadius: '50%', border: '1.5px solid #fff', width: '12px', height: '12px' }}></div>
+                  <span>PM2.5 Moderate (~11)</span>
+                </div>
+                <div className="legend-item">
+                  <div className="legend-color" style={{ backgroundColor: 'rgb(250, 50, 30)', borderRadius: '50%', border: '1.5px solid #fff', width: '12px', height: '12px' }}></div>
+                  <span>PM2.5 High (~13)</span>
+                </div>
+                <div className="legend-item">
+                  <div className="legend-color" style={{ backgroundColor: 'rgb(220, 10, 40)', borderRadius: '50%', border: '1.5px solid #fff', width: '12px', height: '12px' }}></div>
+                  <span>PM2.5 Critical (&ge;15)</span>
+                </div>
+                <div className="legend-item" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '4px', marginTop: '2px' }}>
+                  <span style={{ fontSize: '10px', color: '#8890a4' }}>Predicted: {pm25Level.toFixed(1)} µg/m³ (baseline 13.2)</span>
+                </div>
+                <div className="legend-item">
+                  <div className="legend-color" style={{ backgroundColor: '#3b82f6', borderRadius: '50%', width: '10px', height: '10px' }}></div>
+                  <span>Soundview</span>
                 </div>
               </div>
             </section>

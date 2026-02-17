@@ -1,0 +1,2 @@
+tax_amount,pm25_ug_m3,speed_mph,trucks_diverted,radius_pm25,jitter_speed,density_trucks,risk_score
+100,10.5,60,2080,0.30,0.2000,0.3467,0.20

@@ -27,5 +27,9 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# API Keys / Secrets
+config.js
+subpage/frontend/.env
+
 # Claude
 .claude/
